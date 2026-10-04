@@ -142,6 +142,17 @@ The config file sets concurrency, timeouts, retries, the gate, the LLM provider 
 environment variables that hold credentials (`credentials_env: {DemoKey: API_VV_DEMO_KEY}`).
 Secrets themselves never appear in config, plans, results or reports.
 
+
+### Install a release build
+
+Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
+
+```sh
+pip install https://github.com/muhib-karim/api-vv-toolkit/releases/download/v1.1.0/api_vv_toolkit-1.1.0-py3-none-any.whl
+```
+
+Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/api-vv-toolkit/releases/latest).
+
 ## Demo: two seeded defects
 
 `examples/demo_api/` is a small Starlette service with an OpenAPI 3.1 contract, twelve
