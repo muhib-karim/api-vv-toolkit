@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach artifacts to (e.g. v1.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,demo]'
+          python -m pytest -q
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build
+          python -m build
+          VERSION="${TAG#v}"
+          ls dist | grep -q "$VERSION" || { echo "dist does not match $TAG"; ls dist; exit 1; }
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Check the wheel installs
+        run: |
+          python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl && /tmp/v/bin/pip show "$(basename $GITHUB_REPOSITORY)"
+      - name: Publish to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --notes-from-tag --verify-tag
+          fi
