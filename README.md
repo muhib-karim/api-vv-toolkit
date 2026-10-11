@@ -1,17 +1,19 @@
+<p align="center"><img src="docs/assets/showcase-banner.png" alt="API verification" width="100%"></p>
+
 # api-vv-toolkit
 
 [![CI](https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit)](https://github.com/muhib-karim/api-vv-toolkit/releases)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
-[![Demo report](https://img.shields.io/badge/demo-live%20report-brightgreen.svg)](https://muhib-karim.github.io/api-vv-toolkit/)
+[![Demo report](https://img.shields.io/badge/demo-seeded%20defects-brightgreen.svg)](https://muhib-karim.github.io/api-vv-toolkit/)
 
 api-vv-toolkit reads an OpenAPI contract and a list of written requirements. It generates API
 tests from them, runs the tests against a live service and reports which requirements are
 verified, which failed and which have no test at all. Every test records the requirement it
 checks, so a failure points back to what the service was supposed to do.
 
-**Live demo:** [the HTML traceability report](https://muhib-karim.github.io/api-vv-toolkit/) from the
+**Seeded-defect demo (not an external production audit):** [the HTML traceability report](https://muhib-karim.github.io/api-vv-toolkit/) from the
 seeded-defect demo below, rebuilt by CI from `main` on every push
 ([CSV matrix](https://muhib-karim.github.io/api-vv-toolkit/traceability.csv),
 [JUnit XML](https://muhib-karim.github.io/api-vv-toolkit/junit.xml)).
@@ -19,6 +21,14 @@ seeded-defect demo below, rebuilt by CI from `main` on every push
 An optional LLM step can suggest extra test scenarios. Its suggestions are checked against the
 spec before they enter the plan, and the prompt, raw reply and accept/reject reason are stored
 with the plan so a reviewer can see why each one was kept or dropped.
+
+## Inspect the demo
+
+The demo runs against the bundled local widget API with two deliberately seeded defects. It demonstrates traceability and failure reporting, not a production service certification. No paid model call is needed for this demo.
+
+![Captured demo report](docs/assets/demo-report.png)
+
+*Screenshot captured from the public demo on 11 October 2026. It is an example report, not a current health monitor.*
 
 ## The problem
 
