@@ -130,6 +130,8 @@ th,td{border:1px solid #adb5bd;padding:.6rem;text-align:left}
 th{background:#edf1f5}td{vertical-align:top}code{overflow-wrap:anywhere}
 .failed{color:#a2191f}.verified{color:#12622b}li{margin:.4rem 0}
 </style></head><body><h1>API V&amp;V report</h1>
+<p>Results describe this recorded run only. The bundled demo uses deliberately seeded defects;
+its output is not a production service certification.</p>
 <table><thead><tr><th>Requirement</th><th>Priority</th><th>Status</th>
 <th>Tests → latest verdict</th></tr></thead>
 <tbody>{% for row in data.rows %}<tr><td>{{ row.requirement.id }}: {{ row.requirement.text }}</td>
