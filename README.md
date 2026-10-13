@@ -1,12 +1,17 @@
-<p align="center"><img src="docs/assets/showcase-banner.png" alt="API verification" width="100%"></p>
+<p align="center"><img src="docs/banner.svg" alt="api-vv-toolkit: from OpenAPI spec and written requirements to tested, traceable verdicts" width="100%"></p>
+
+<p align="center"><b>Generate API tests from an OpenAPI contract and written requirements, run them, and get a requirements traceability matrix with a CI gate.</b></p>
+
+<p align="center">
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/muhib-karim/api-vv-toolkit" alt="License: MIT"></a>
+  <img src="https://img.shields.io/github/languages/top/muhib-karim/api-vv-toolkit" alt="Top language">
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit" alt="Release"></a>
+  <a href="https://muhib-karim.github.io/api-vv-toolkit/"><img src="https://img.shields.io/badge/demo-seeded%20defects-brightgreen.svg" alt="Demo report"></a>
+</p>
 
 # api-vv-toolkit
-
-[![CI](https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit)](https://github.com/muhib-karim/api-vv-toolkit/releases)
-![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
-![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
-[![Demo report](https://img.shields.io/badge/demo-seeded%20defects-brightgreen.svg)](https://muhib-karim.github.io/api-vv-toolkit/)
 
 api-vv-toolkit reads an OpenAPI contract and a list of written requirements. It generates API
 tests from them, runs the tests against a live service and reports which requirements are
@@ -21,6 +26,25 @@ seeded-defect demo below, rebuilt by CI from `main` on every push
 An optional LLM step can suggest extra test scenarios. Its suggestions are checked against the
 spec before they enter the plan, and the prompt, raw reply and accept/reject reason are stored
 with the plan so a reviewer can see why each one was kept or dropped.
+
+## Key features
+
+- **OpenAPI 3.0/3.1 parsing** into typed pydantic models, with local `$ref` resolution and
+  explicit errors for unsupported input (remote/recursive refs, non-JSON bodies).
+- **Requirements file validated against the spec**: each requirement selects the operations,
+  responses and check types it covers.
+- **Six rule-based generators** (happy path, schema boundaries, parameter boundaries, required
+  omission, auth required, status coverage) producing deterministic, fingerprinted test ids.
+- **Reviewable YAML test plan** between generation and execution, re-validated before it runs.
+- **Async executor** (httpx) checking status codes, JSON Schema of response bodies, documented
+  headers and optional latency budgets.
+- **Traceability reports** in Markdown, self-contained HTML, CSV and JUnit XML, plus a
+  configurable exit-code gate for CI.
+- **Optional LLM-assisted scenarios** (OpenAI-compatible or Anthropic, or an offline `mock`
+  replay) behind a spec validation gate, with prompt, raw reply and accept/reject reason stored
+  in the plan.
+- **Six-command CLI** (`api-vv parse | validate-requirements | generate | run | report | trace`),
+  a Dockerfile and a release workflow that publishes a wheel, sdist and checksums.
 
 ## Inspect the demo
 
@@ -52,7 +76,7 @@ This tool derives the matrix from the same data the tests run from, so it cannot
 - the run fails (non-zero exit code) when a must-priority requirement is failed, partially
   covered or not covered. Which priorities and statuses fail the run is configurable.
 
-## How it works
+## Architecture: how it works
 
 ```mermaid
 flowchart LR
@@ -101,7 +125,7 @@ flowchart LR
    Markdown, self-contained HTML (inline CSS, no scripts or external assets), CSV for
    spreadsheet workflows and JUnit XML for CI systems.
 
-## Quickstart
+## Quick start
 
 Requires Python 3.11 or newer.
 
@@ -309,18 +333,45 @@ suggestions that must be checked, not as a trusted author.
 - Diff reports between two runs of the same plan.
 - Property-based value generation for bodies without examples.
 
-## Development
+## Testing
 
 ```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev,demo]'
 make lint       # ruff check, ruff format --check
 make typecheck  # mypy --strict src
 make test       # pytest with coverage (fails under 85%)
-make demo
+make demo       # seeded-defect demo; exits non-zero unless exactly REQ-003 and REQ-008 fail
 ```
 
-Tests use [pytest](https://docs.pytest.org/). The executor tests run the demo app in-process
-through `httpx.ASGITransport`. The architecture diagram uses [Mermaid](https://mermaid.js.org/).
-The [OpenAPI Specification](https://spec.openapis.org/oas/latest.html) defines the input format.
+The suite has 129 pytest tests covering the parser, generators, executor, LLM adapters,
+reports and CLI. The executor tests run the demo app in-process through
+`httpx.ASGITransport`, and the test suite blocks sockets entirely, so no network or model
+calls are made. CI ([ci.yml](.github/workflows/ci.yml)) runs lint, type checks and tests on
+Python 3.11 and 3.12, then the demo and a Docker build smoke test.
+
+## Project structure
+
+```text
+src/api_vv/
+  cli.py        argparse entry point (api-vv) and exit-code gate
+  spec.py       OpenAPI loading and local $ref resolution
+  models.py     pydantic models: spec, requirements, config, plan, results
+  generate.py   rule-based generators and case fingerprinting
+  llm.py        optional LLM proposals (OpenAI-compatible, Anthropic, mock) and validation gate
+  execute.py    async httpx executor and response verdicts
+  report.py     traceability matrix; Markdown, HTML, CSV and JUnit output
+  io.py         YAML/JSON reading and writing
+examples/demo_api/  Starlette demo service with two seeded defects, its spec and requirements
+scripts/demo.py     end-to-end demo runner used by `make demo` and CI
+tests/              pytest suite
+docs/               banner, screenshots, sample report and CSV matrix
+```
+
+## Contributing and license
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [CHANGELOG.md](CHANGELOG.md).
-Licensed under the MIT License.
+[Mermaid](https://mermaid.js.org/) renders the architecture diagram and the
+[OpenAPI Specification](https://spec.openapis.org/oas/latest.html) defines the input format.
+
+Released under the [MIT License](LICENSE).

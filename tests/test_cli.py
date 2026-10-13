@@ -148,3 +148,29 @@ def test_unknown_requirement_operation(tmp_path: Path, capsys: pytest.CaptureFix
         capsys, "validate-requirements", "--spec", SPEC, "--requirements", str(reqs)
     )
     assert (code, err) == (2, "error: REQ-001: unknown operation nope\n")
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--help"],
+        *(
+            [command, "--help"]
+            for command in ("parse", "validate-requirements", "generate", "run", "report", "trace")
+        ),
+    ],
+)
+def test_help_exits_cleanly(capsys: pytest.CaptureFixture[str], argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(argv)
+    assert exc.value.code == 0
+    assert "usage: api-vv" in capsys.readouterr().out
+
+
+def test_version_matches_package(capsys: pytest.CaptureFixture[str]) -> None:
+    from api_vv import __version__
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"])
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.strip() == __version__

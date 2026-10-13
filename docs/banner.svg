@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="t d">
+  <title id="t">api-vv-toolkit</title>
+  <desc id="d">Requirements traced through generated API tests to pass and fail verdicts.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#14263d"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="320" fill="url(#bg)"/>
+  <g stroke="#1e3a5f" stroke-width="1" opacity="0.6">
+    <path d="M0 80H1280M0 160H1280M0 240H1280"/>
+  </g>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="72" y="92" font-size="16" font-weight="600" letter-spacing="3" fill="#7dd3fc">OPENAPI · REQUIREMENTS · TRACEABILITY</text>
+    <text x="70" y="168" font-size="64" font-weight="700" fill="#f8fafc">api-vv-toolkit</text>
+    <rect x="72" y="190" width="120" height="4" rx="2" fill="url(#accent)"/>
+    <text x="72" y="236" font-size="24" fill="#cbd5e1">From OpenAPI spec and written requirements</text>
+    <text x="72" y="268" font-size="24" fill="#cbd5e1">to tested, traceable verdicts.</text>
+  </g>
+
+  <!-- Motif: requirements -> test cases -> verdicts -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600">
+    <g stroke="#38bdf8" stroke-width="2" fill="none" opacity="0.75">
+      <path d="M876 100C920 100 920 90 960 90"/>
+      <path d="M876 100C920 100 920 150 960 150"/>
+      <path d="M876 200C920 200 920 150 960 150"/>
+      <path d="M876 200C920 200 920 210 960 210"/>
+      <path d="M876 200C920 200 920 270 960 270"/>
+      <path d="M1056 90H1110M1056 150H1110M1056 210H1110M1056 270H1110"/>
+    </g>
+    <rect x="780" y="84" width="96" height="32" rx="8" fill="#1e293b" stroke="#38bdf8"/>
+    <text x="828" y="105" text-anchor="middle" fill="#e2e8f0">REQ-002</text>
+    <rect x="780" y="184" width="96" height="32" rx="8" fill="#1e293b" stroke="#38bdf8"/>
+    <text x="828" y="205" text-anchor="middle" fill="#e2e8f0">REQ-003</text>
+
+    <g fill="#0f172a" stroke="#64748b">
+      <rect x="960" y="76" width="96" height="28" rx="6"/>
+      <rect x="960" y="136" width="96" height="28" rx="6"/>
+      <rect x="960" y="196" width="96" height="28" rx="6"/>
+      <rect x="960" y="256" width="96" height="28" rx="6"/>
+    </g>
+    <g fill="#94a3b8" text-anchor="middle" font-weight="400" font-size="12">
+      <text x="1008" y="95">TC-49e3</text>
+      <text x="1008" y="155">TC-a1c0</text>
+      <text x="1008" y="215">TC-fcf6</text>
+      <text x="1008" y="275">TC-2b7d</text>
+    </g>
+
+    <g>
+      <circle cx="1124" cy="90" r="13" fill="#065f46" stroke="#34d399"/>
+      <path d="M1118 90l4 4 8-8" stroke="#34d399" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="1124" cy="150" r="13" fill="#065f46" stroke="#34d399"/>
+      <path d="M1118 150l4 4 8-8" stroke="#34d399" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="1124" cy="210" r="13" fill="#7f1d1d" stroke="#f87171"/>
+      <path d="M1119 205l10 10M1129 205l-10 10" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="1124" cy="270" r="13" fill="#065f46" stroke="#34d399"/>
+      <path d="M1118 270l4 4 8-8" stroke="#34d399" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    </g>
+    <text x="1150" y="95" fill="#34d399">pass</text>
+    <text x="1150" y="155" fill="#34d399">pass</text>
+    <text x="1150" y="215" fill="#f87171">fail</text>
+    <text x="1150" y="275" fill="#34d399">pass</text>
+  </g>
+</svg>
