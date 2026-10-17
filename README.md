@@ -332,11 +332,11 @@ newer models need (see above).
   to 71%, GPT-6 Sol 39% to 94%) while each run made 8 model calls instead of 12, a third fewer.
 - **Accepted is not the same as right.** The gate checks a proposal against the contract, not the
   model's reading of it. With more of their proposals getting through, Haiku's wrong expectations
-  rose from 0 to 21 over three runs and Sonnet's from 2 to 10 (for example, expecting 422 for a
-  valid 7-character name). Opus 5.5 (5) and GPT-6 Sol (0) stayed low. Accepted LLM cases still
+  rose from 0 to 21 over three runs and Sonnet's from 2 to 10 (for example, Haiku 4.5 expected 422 for the
+  valid 7-character name `widgetx`, maximum 8; the API returned 201, case TC-6e871078aede). Opus 5.5 (5) and GPT-6 Sol (0) stayed low. Accepted LLM cases still
   need the human review step the plan is built around.
 - **Opus 5.5 and Sonnet 5 hit both seeded defects** with model-proposed cases under both prompts;
-  GPT-6 Sol and Haiku 4.5 hit one each.
+  GPT-6 Sol and Haiku 4.5 hit one per prompt version.
 - **Three of the four models needed request options the 1.1.0 client did not have:** Sonnet 5 and
   Opus 5.5 reject `temperature`, Opus 5.5 rejects a forced tool call, and GPT-6 Sol requires
   `max_completion_tokens`.
