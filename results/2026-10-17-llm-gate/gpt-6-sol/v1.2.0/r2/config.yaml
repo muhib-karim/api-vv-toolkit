@@ -1,0 +1,11 @@
+concurrency: 4
+timeout_seconds: 5
+retries: 0
+credentials_env:
+  DemoKey: API_VV_DEMO_KEY
+llm:
+  provider: openai
+  model: gpt-6-sol
+  timeout_seconds: 120
+  token_param: max_completion_tokens
+  temperature: null

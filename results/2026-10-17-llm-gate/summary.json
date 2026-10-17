@@ -1,0 +1,684 @@
+{
+ "groups": [
+  {
+   "model": "claude-haiku-4-5",
+   "variant": "v1.1.0",
+   "runs": 3,
+   "calls_per_run": 12.0,
+   "proposals": 348,
+   "accepted": 84,
+   "acceptance_rate": 0.241,
+   "llm_cases_executed": 48,
+   "failed_on_seeded_defects": 3,
+   "failed_wrong_expectation": 0,
+   "seeded_defects_hit": [
+    "defect-1"
+   ]
+  },
+  {
+   "model": "claude-haiku-4-5",
+   "variant": "v1.2.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 153,
+   "accepted": 135,
+   "acceptance_rate": 0.882,
+   "llm_cases_executed": 102,
+   "failed_on_seeded_defects": 12,
+   "failed_wrong_expectation": 21,
+   "seeded_defects_hit": [
+    "defect-2"
+   ]
+  },
+  {
+   "model": "claude-opus-5-5",
+   "variant": "v1.1.0",
+   "runs": 3,
+   "calls_per_run": 12.0,
+   "proposals": 206,
+   "accepted": 88,
+   "acceptance_rate": 0.427,
+   "llm_cases_executed": 68,
+   "failed_on_seeded_defects": 16,
+   "failed_wrong_expectation": 3,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "claude-opus-5-5",
+   "variant": "v1.2.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 116,
+   "accepted": 108,
+   "acceptance_rate": 0.931,
+   "llm_cases_executed": 86,
+   "failed_on_seeded_defects": 20,
+   "failed_wrong_expectation": 5,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "claude-sonnet-5",
+   "variant": "v1.1.0",
+   "runs": 3,
+   "calls_per_run": 12.0,
+   "proposals": 172,
+   "accepted": 33,
+   "acceptance_rate": 0.192,
+   "llm_cases_executed": 18,
+   "failed_on_seeded_defects": 4,
+   "failed_wrong_expectation": 2,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "claude-sonnet-5",
+   "variant": "v1.2.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 86,
+   "accepted": 61,
+   "acceptance_rate": 0.709,
+   "llm_cases_executed": 50,
+   "failed_on_seeded_defects": 7,
+   "failed_wrong_expectation": 10,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "gpt-6-sol",
+   "variant": "v1.1.0",
+   "runs": 3,
+   "calls_per_run": 12.0,
+   "proposals": 114,
+   "accepted": 45,
+   "acceptance_rate": 0.395,
+   "llm_cases_executed": 29,
+   "failed_on_seeded_defects": 3,
+   "failed_wrong_expectation": 0,
+   "seeded_defects_hit": [
+    "defect-1"
+   ]
+  },
+  {
+   "model": "gpt-6-sol",
+   "variant": "v1.2.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 49,
+   "accepted": 46,
+   "acceptance_rate": 0.939,
+   "llm_cases_executed": 31,
+   "failed_on_seeded_defects": 3,
+   "failed_wrong_expectation": 0,
+   "seeded_defects_hit": [
+    "defect-1"
+   ]
+  }
+ ],
+ "runs": [
+  {
+   "run": "r1",
+   "requirements_queried": 12,
+   "proposals": 116,
+   "accepted": 28,
+   "llm_cases_in_plan": 16,
+   "executed_passed": 15,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 39,
+    "do not include llm-scenario": 25,
+    "schema: dict_type": 20,
+    "conflicting expectations": 4
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 79
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 12,
+   "proposals": 116,
+   "accepted": 28,
+   "llm_cases_in_plan": 16,
+   "executed_passed": 15,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 39,
+    "do not include llm-scenario": 25,
+    "schema: dict_type": 20,
+    "conflicting expectations": 4
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 80
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 12,
+   "proposals": 116,
+   "accepted": 28,
+   "llm_cases_in_plan": 16,
+   "executed_passed": 15,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 39,
+    "do not include llm-scenario": 25,
+    "schema: dict_type": 20,
+    "conflicting expectations": 4
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 80
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 51,
+   "accepted": 45,
+   "llm_cases_in_plan": 34,
+   "executed_passed": 23,
+   "executed_failed": 11,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 7,
+   "rejections": {
+    "conflicting expectations": 6
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 38
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 51,
+   "accepted": 45,
+   "llm_cases_in_plan": 34,
+   "executed_passed": 23,
+   "executed_failed": 11,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 7,
+   "rejections": {
+    "conflicting expectations": 6
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 39
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 51,
+   "accepted": 45,
+   "llm_cases_in_plan": 34,
+   "executed_passed": 23,
+   "executed_failed": 11,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 7,
+   "rejections": {
+    "conflicting expectations": 6
+   },
+   "model": "claude-haiku-4-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 40
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 12,
+   "proposals": 74,
+   "accepted": 31,
+   "llm_cases_in_plan": 23,
+   "executed_passed": 17,
+   "executed_failed": 6,
+   "failures_on_seeded_defects": 5,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 1,
+   "rejections": {
+    "outside the requested requirement coverage": 26,
+    "do not include llm-scenario": 16,
+    "conflicting expectations": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 81
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 12,
+   "proposals": 66,
+   "accepted": 28,
+   "llm_cases_in_plan": 22,
+   "executed_passed": 16,
+   "executed_failed": 6,
+   "failures_on_seeded_defects": 5,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 1,
+   "rejections": {
+    "outside the requested requirement coverage": 26,
+    "do not include llm-scenario": 10,
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 69
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 12,
+   "proposals": 66,
+   "accepted": 29,
+   "llm_cases_in_plan": 23,
+   "executed_passed": 16,
+   "executed_failed": 7,
+   "failures_on_seeded_defects": 6,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 1,
+   "rejections": {
+    "outside the requested requirement coverage": 24,
+    "do not include llm-scenario": 11,
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 70
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 38,
+   "accepted": 35,
+   "llm_cases_in_plan": 28,
+   "executed_passed": 19,
+   "executed_failed": 9,
+   "failures_on_seeded_defects": 7,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "conflicting expectations": 1,
+    "unknown parameter: query.debug": 1,
+    "unknown parameter: header.Authorization": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 37
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 42,
+   "accepted": 39,
+   "llm_cases_in_plan": 31,
+   "executed_passed": 23,
+   "executed_failed": 8,
+   "failures_on_seeded_defects": 7,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 1,
+   "rejections": {
+    "conflicting expectations": 2,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 39
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 36,
+   "accepted": 34,
+   "llm_cases_in_plan": 27,
+   "executed_passed": 19,
+   "executed_failed": 8,
+   "failures_on_seeded_defects": 6,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 35
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 12,
+   "proposals": 59,
+   "accepted": 18,
+   "llm_cases_in_plan": 10,
+   "executed_passed": 7,
+   "executed_failed": 3,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "outside the requested requirement coverage": 15,
+    "do not include llm-scenario": 10,
+    "malformed": 7,
+    "operation has no request body": 3,
+    "schema: dict_type": 3,
+    "unknown parameter: query.debug": 2,
+    "unknown parameter: header.Accept": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 94
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 12,
+   "proposals": 51,
+   "accepted": 10,
+   "llm_cases_in_plan": 6,
+   "executed_passed": 4,
+   "executed_failed": 2,
+   "failures_on_seeded_defects": 2,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 15,
+    "do not include llm-scenario": 10,
+    "malformed": 7,
+    "unknown parameter: widget_id.path; missing parameter: path.w": 4,
+    "schema: dict_type": 2,
+    "unknown parameter: query.debug": 1,
+    "unknown parameter: query.unexpected": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 93
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 12,
+   "proposals": 62,
+   "accepted": 5,
+   "llm_cases_in_plan": 2,
+   "executed_passed": 1,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 25,
+    "do not include llm-scenario": 12,
+    "malformed": 6,
+    "operation has no request body": 3,
+    "conflicting expectations": 2,
+    "unknown parameter: headers.Authorization": 2,
+    "unknown parameter: query.verbose": 1,
+    "unknown parameter: headers.X-Service-Version": 1,
+    "unknown parameter: headers.Accept": 1,
+    "unknown parameter: headers.DemoKey": 1,
+    "unknown parameter: query.debug": 1,
+    "unknown parameter: query.unexpected": 1,
+    "schema: dict_type": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.1.0",
+   "generate_seconds": 88
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 30,
+   "accepted": 22,
+   "llm_cases_in_plan": 18,
+   "executed_passed": 12,
+   "executed_failed": 6,
+   "failures_on_seeded_defects": 2,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 4,
+   "rejections": {
+    "malformed": 2,
+    "unknown parameter: header.DemoKey": 2,
+    "conflicting expectations": 1,
+    "unknown parameter: header.Authorization": 1,
+    "unknown parameter: header.demokey": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 38
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 24,
+   "accepted": 14,
+   "llm_cases_in_plan": 12,
+   "executed_passed": 6,
+   "executed_failed": 6,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "malformed": 3,
+    "unknown parameter: header.Authorization": 2,
+    "unknown parameter: header.DemoKey": 2,
+    "conflicting expectations": 1,
+    "unknown parameter: header.demokey": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 34
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 32,
+   "accepted": 25,
+   "llm_cases_in_plan": 20,
+   "executed_passed": 15,
+   "executed_failed": 5,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 4,
+   "rejections": {
+    "malformed": 2,
+    "unknown parameter: header.Authorization": 2,
+    "conflicting expectations": 1,
+    "unknown parameter: header.DemoKey": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.2.0",
+   "generate_seconds": 36
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 12,
+   "proposals": 37,
+   "accepted": 13,
+   "llm_cases_in_plan": 8,
+   "executed_passed": 7,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 17,
+    "do not include llm-scenario": 6,
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.1.0",
+   "generate_seconds": 35
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 12,
+   "proposals": 35,
+   "accepted": 15,
+   "llm_cases_in_plan": 11,
+   "executed_passed": 10,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 13,
+    "do not include llm-scenario": 6,
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.1.0",
+   "generate_seconds": 36
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 12,
+   "proposals": 42,
+   "accepted": 17,
+   "llm_cases_in_plan": 10,
+   "executed_passed": 9,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "outside the requested requirement coverage": 18,
+    "do not include llm-scenario": 6,
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.1.0",
+   "generate_seconds": 38
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 16,
+   "accepted": 15,
+   "llm_cases_in_plan": 10,
+   "executed_passed": 9,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.2.0",
+   "generate_seconds": 20
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 16,
+   "accepted": 15,
+   "llm_cases_in_plan": 11,
+   "executed_passed": 10,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.2.0",
+   "generate_seconds": 19
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 17,
+   "accepted": 16,
+   "llm_cases_in_plan": 10,
+   "executed_passed": 9,
+   "executed_failed": 1,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.2.0",
+   "generate_seconds": 19
+  }
+ ]
+}

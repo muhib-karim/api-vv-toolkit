@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use api-vv-toolkit in your work, please cite it as below."
+title: "api-vv-toolkit: requirements-traced API verification with a gated LLM test generator"
+abstract: >-
+  A toolkit that generates API tests from an OpenAPI contract and written requirements, runs them
+  against a live service, and reports a requirements traceability matrix with a CI gate. Optional
+  LLM-proposed test cases pass a spec validation gate and are stored with full provenance; the
+  repository includes a measured study of that gate against live models.
+type: software
+authors:
+  - family-names: Karim
+    given-names: Muhib
+repository-code: "https://github.com/muhib-karim/api-vv-toolkit"
+url: "https://muhib-karim.github.io/api-vv-toolkit/"
+license: MIT
+version: 1.2.0
+date-released: "2026-10-18"
+keywords:
+  - api-testing
+  - verification-and-validation
+  - requirements-traceability
+  - openapi
+  - llm-evaluation

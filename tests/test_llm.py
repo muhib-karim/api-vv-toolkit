@@ -47,6 +47,28 @@ def test_prompt_treats_spec_text_as_data(base: Plan) -> None:
     assert payload["output_schema"]["required"] == ["proposals"]
 
 
+def test_prompt_states_allowed_targets_and_parameter_shape(base: Plan) -> None:
+    prompt = prompt_for(requirement(base, "REQ-010"), base)
+    payload = json.loads(prompt.split("\n", 1)[1])
+    assert payload["allowed_targets"] == [{"operation_id": "getWidget", "expected_status": ["404"]}]
+    assert '{"path": {"widget_id": 1}' in prompt
+
+
+def test_augment_only_queries_opted_in_requirements(base: Plan) -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content)["messages"][0]["content"])
+        content = [{"type": "tool_use", "name": "propose_cases", "input": {"proposals": []}}]
+        return httpx.Response(200, json={"content": content})
+
+    config = LLMConfig(provider="anthropic", model="m")
+    with pytest.MonkeyPatch.context() as mp:
+        provider_env(mp)
+        plan = asyncio.run(augment(base, config, httpx.MockTransport(handler)))
+    assert len(calls) == 1 and [a.requirement_id for a in plan.llm_audit] == ["REQ-010"]
+
+
 def test_accepted_proposal_is_traced(base: Plan) -> None:
     cases, reviews = review(raw(proposal()), requirement(base, "REQ-010"), base)
     (accepted,) = cases
@@ -113,20 +135,20 @@ def test_conflicting_expectation_is_rejected(base: Plan) -> None:
 def test_augment_records_audit(base: Plan, config: Any) -> None:
     plan = asyncio.run(augment(base, config.llm))
     audit = {item.requirement_id: item for item in plan.llm_audit}
-    assert len(audit) == 12
+    # Only REQ-010 selects llm-scenario, so it is the only requirement sent to the model.
+    assert set(audit) == {"REQ-010"}
     reviews = audit["REQ-010"].reviews
     assert [r.accepted for r in reviews] == [True, False]
     assert reviews[1].reason == (
         "unknown operation; proposal is outside the requested requirement coverage"
     )
-    assert audit["REQ-001"].raw_response == '{"proposals": []}'
     assert "REQ-010" in audit["REQ-010"].prompt
 
 
 def test_augment_skips_inspection_requirements(base: Plan) -> None:
-    base.requirements.requirements[0].verification_method = "inspection"
+    requirement(base, "REQ-010").verification_method = "inspection"
     plan = asyncio.run(augment(base, LLMConfig()))
-    assert "REQ-001" not in {item.requirement_id for item in plan.llm_audit}
+    assert "REQ-010" not in {item.requirement_id for item in plan.llm_audit}
 
 
 def test_mock_returns_raw_string_fixture(tmp_path: Any) -> None:
@@ -177,6 +199,48 @@ def test_anthropic_request_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     assert str(seen[0].url) == "https://llm.invalid/v1/messages"
     assert seen[0].headers["x-api-key"] == "sk-secret-value"
     assert json.loads(seen[0].content)["tool_choice"]["name"] == "propose_cases"
+
+
+def test_anthropic_unforced_tool_choice(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_env(monkeypatch)
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        content = [{"type": "tool_use", "name": "propose_cases", "input": {"proposals": []}}]
+        return httpx.Response(200, json={"content": content})
+
+    config = LLMConfig(provider="anthropic", model="m", tool_choice="auto", temperature=None)
+    asyncio.run(complete(config, "REQ-1", "hi", httpx.MockTransport(handler)))
+    body = json.loads(seen[0].content)
+    assert body["tool_choice"] == {"type": "auto"} and "temperature" not in body
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        ({}, {"max_tokens": 2048, "temperature": 0}),
+        (
+            {"token_param": "max_completion_tokens", "max_tokens": 512, "temperature": None},
+            {"max_completion_tokens": 512},
+        ),
+    ],
+)
+def test_openai_token_param(
+    monkeypatch: pytest.MonkeyPatch, overrides: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    provider_env(monkeypatch)
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"choices": [{"message": {"content": raw()}}]})
+
+    config = LLMConfig(provider="openai", model="m", **overrides)
+    asyncio.run(complete(config, "REQ-1", "hi", httpx.MockTransport(handler)))
+    body = json.loads(seen[0].content)
+    keys = {"max_tokens", "max_completion_tokens", "temperature"}
+    assert {key: body[key] for key in keys if key in body} == expected
 
 
 @pytest.mark.parametrize(

@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The project uses semantic versioning.
 
+## [1.2.0] - 2026-10-18
+
+### Changed
+
+- The LLM generator only queries requirements whose cover selects the `llm-scenario` check. The
+  gate could never accept proposals for any other requirement, so those calls were pure cost.
+- The prompt lists the allowed operation and status pairs (`allowed_targets`) and shows the
+  grouped parameter shape (`{"path": {...}}`), the two most common live rejection reasons.
+
+### Added
+
+- `llm` config options for newer models: `max_tokens`, `token_param`
+  (`max_tokens` or `max_completion_tokens`), `temperature` (`null` omits it) and `tool_choice`
+  (`tool` or `auto` for Anthropic models that reject a forced tool call).
+- A measured study of the LLM gate against four live models, three runs each, before and after
+  the prompt change: `results/2026-10-17-llm-gate/`, `examples/llm_experiment/`,
+  `scripts/llm_gate_experiment.sh`, `scripts/llm_gate_summary.py` and `make llm-gate`.
+- `CITATION.cff`.
+
 ## [1.1.0] - 2026-10-03
 
 ### Fixed

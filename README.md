@@ -9,6 +9,8 @@
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
   <a href="https://github.com/muhib-karim/api-vv-toolkit/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit" alt="Release"></a>
   <a href="https://muhib-karim.github.io/api-vv-toolkit/"><img src="https://img.shields.io/badge/demo-seeded%20defects-brightgreen.svg" alt="Demo report"></a>
+  <a href="#measured-results-the-llm-gate-against-live-models"><img src="https://img.shields.io/badge/results-measured%20live-blue.svg" alt="Measured results"></a>
+  <a href="CITATION.cff"><img src="https://img.shields.io/badge/cite-CITATION.cff-informational.svg" alt="Cite"></a>
 </p>
 
 # api-vv-toolkit
@@ -182,7 +184,7 @@ Secrets themselves never appear in config, plans, results or reports.
 Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
 
 ```sh
-pip install https://github.com/muhib-karim/api-vv-toolkit/releases/download/v1.1.0/api_vv_toolkit-1.1.0-py3-none-any.whl
+pip install https://github.com/muhib-karim/api-vv-toolkit/releases/download/v1.2.0/api_vv_toolkit-1.2.0-py3-none-any.whl
 ```
 
 Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/api-vv-toolkit/releases/latest).
@@ -261,7 +263,9 @@ suggestions that must be checked, not as a trusted author.
 - **Schema-constrained output.** The model must return JSON matching a fixed schema
   (`proposals[]` with operation, parameters, body, expected status and a `negative` flag). OpenAI-compatible
   endpoints get it as `response_format: json_schema`, Anthropic as a forced tool call.
-  Temperature is 0.
+  Temperature defaults to 0. Models that reject a fixed temperature, `max_tokens` or a forced
+  tool call are handled by config (`temperature: null`, `token_param: max_completion_tokens`,
+  `tool_choice: auto`) rather than by code changes.
 - **Spec validation gate.** Each proposal must name a known operation, use only declared
   parameters with schema-valid values, expect a documented response, stay within the requirement
   it was asked about, and mark any schema-invalid body as `negative: true`. Proposals that
@@ -283,6 +287,10 @@ suggestions that must be checked, not as a trusted author.
     case_id: null
   ```
 
+- **Opt-in per requirement.** The model is only asked about requirements whose cover selects the
+  `llm-scenario` check, and the prompt lists the exact operation and status pairs it may target
+  (`allowed_targets`). Asking about any other requirement costs a call whose proposals the gate
+  must reject (see the measured results below).
 - **Never auto-trusted.** Accepted proposals land in the same reviewable plan as rule-based cases
   and are tagged `generators: [llm]`. A requirement is only traced to an LLM case if its selectors
   explicitly allow `llm-scenario` checks, so a model cannot claim coverage of a requirement it
@@ -293,6 +301,79 @@ suggestions that must be checked, not as a trusted author.
 - **Offline by default.** The `mock` provider replays hand-written fixtures
   (`examples/demo_api/mock_responses.yaml`). Tests, CI and the demo make no model calls, and the
   test suite blocks sockets entirely.
+
+## Measured results: the LLM gate against live models
+
+**Question.** When real models propose test cases, how many survive the spec validation gate,
+and do the accepted cases find real defects or just add noise?
+
+**Setup (2026-10-17, live calls, not mock).** The seeded-defect demo API with the 12 demo
+requirements, eight of which (REQ-003 to REQ-010) opt in to model proposals in
+[`examples/llm_experiment/requirements.yaml`](examples/llm_experiment/requirements.yaml). Each
+model ran three times per prompt version. Every accepted case was then executed against the demo
+service. *v1.1.0 prompt* is the 1.1.0 prompt and requirement selection (it asks the model about
+all 12 requirements); *v1.2.0 prompt* is this release. Both use the same request options, which
+newer models need (see above).
+
+| Model | Prompt | Runs | Model calls / run | Proposals | Accepted | Acceptance | LLM cases executed | Failed on seeded defects | Wrong expectations | Seeded defects hit |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| claude-haiku-4-5 | v1.1.0 | 3 | 12 | 348 | 84 | 24% | 48 | 3 | 0 | defect-1 |
+| claude-haiku-4-5 | v1.2.0 | 3 | 8 | 153 | 135 | 88% | 102 | 12 | 21 | defect-2 |
+| claude-opus-5-5 | v1.1.0 | 3 | 12 | 206 | 88 | 43% | 68 | 16 | 3 | defect-1, defect-2 |
+| claude-opus-5-5 | v1.2.0 | 3 | 8 | 116 | 108 | 93% | 86 | 20 | 5 | defect-1, defect-2 |
+| claude-sonnet-5 | v1.1.0 | 3 | 12 | 172 | 33 | 19% | 18 | 4 | 2 | defect-1, defect-2 |
+| claude-sonnet-5 | v1.2.0 | 3 | 8 | 86 | 61 | 71% | 50 | 7 | 10 | defect-1, defect-2 |
+| gpt-6-sol | v1.1.0 | 3 | 12 | 114 | 45 | 39% | 29 | 3 | 0 | defect-1 |
+| gpt-6-sol | v1.2.0 | 3 | 8 | 49 | 46 | 94% | 31 | 3 | 0 | defect-1 |
+
+**Findings.**
+
+- **Acceptance went up for every model** (Haiku 4.5 24% to 88%, Opus 5.5 43% to 93%, Sonnet 5 19%
+  to 71%, GPT-6 Sol 39% to 94%) while each run made 8 model calls instead of 12, a third fewer.
+- **Accepted is not the same as right.** The gate checks a proposal against the contract, not the
+  model's reading of it. With more of their proposals getting through, Haiku's wrong expectations
+  rose from 0 to 21 over three runs and Sonnet's from 2 to 10 (for example, expecting 422 for a
+  valid 7-character name). Opus 5.5 (5) and GPT-6 Sol (0) stayed low. Accepted LLM cases still
+  need the human review step the plan is built around.
+- **Opus 5.5 and Sonnet 5 hit both seeded defects** with model-proposed cases under both prompts;
+  GPT-6 Sol and Haiku 4.5 hit one each.
+- **Three of the four models needed request options the 1.1.0 client did not have:** Sonnet 5 and
+  Opus 5.5 reject `temperature`, Opus 5.5 rejects a forced tool call, and GPT-6 Sol requires
+  `max_completion_tokens`.
+
+Column notes: *Acceptance* is accepted proposals over all proposals. *LLM cases executed* counts
+accepted cases left in the plan after de-duplication, summed over runs. A failed LLM case is
+attributed to a seeded defect when the demo's own code explains it (a 9-character name that the
+contract rejects but the service accepts; a delete that returns 200 instead of 204); every other
+failure is a *wrong expectation*, meaning the model expected a status the contract does not
+support. Per-run plans, raw model replies, review reasons and results are in
+[`results/2026-10-17-llm-gate/`](results/2026-10-17-llm-gate/).
+
+**What the first live run showed.** On v1.1.0 every model lost most proposals at the gate, for
+three reasons the offline mock fixtures never exercised:
+
+1. The generator asked about every requirement, but the gate only traces a proposal to a
+   requirement that selects `llm-scenario`. In the demo only REQ-010 did, so 11 of 12 calls could
+   never produce an accepted case.
+2. Models proposed statuses the requirement did not cover (for example 422 or 200 for a 404
+   requirement), because the prompt never said which statuses were in scope.
+3. Smaller models flattened `parameters` to `{"widget_id": 1}` instead of grouping by location
+   (`{"path": {"widget_id": 1}}`), which the schema rejects.
+
+v1.2.0 only queries opted-in requirements, sends the allowed operation/status pairs and shows the
+parameter shape in the prompt.
+
+**Limits.** One small demo API with two seeded defects and 12 requirements; three runs per cell;
+the defect attribution is specific to this demo. The numbers say how the gate and prompt behave
+here, not how any model performs on real services. Rule-based cases already catch both seeded
+defects on their own; the question measured here is whether model cases add signal or noise.
+
+**Reproduce (live, billed).** With `API_VV_LLM_BASE_URL` and `API_VV_LLM_API_KEY` set:
+
+```bash
+make llm-gate PROVIDER=anthropic MODEL=claude-haiku-4-5 OUT=results/2026-10-17-llm-gate/claude-haiku-4-5/v1.2.0/r1
+make llm-gate-report   # rebuilds summary.json and table.md from the run directories
+```
 
 ## Design decisions
 
@@ -366,6 +447,21 @@ examples/demo_api/  Starlette demo service with two seeded defects, its spec and
 scripts/demo.py     end-to-end demo runner used by `make demo` and CI
 tests/              pytest suite
 docs/               banner, screenshots, sample report and CSV matrix
+```
+
+## Citation
+
+If you use api-vv-toolkit or its LLM gate results, please cite it (GitHub's "Cite this repository"
+button reads [`CITATION.cff`](CITATION.cff)):
+
+```bibtex
+@software{karim_api_vv_toolkit_2026,
+  author  = {Karim, Muhib},
+  title   = {api-vv-toolkit: requirements-traced API verification with a gated LLM test generator},
+  year    = {2026},
+  version = {1.2.0},
+  url     = {https://github.com/muhib-karim/api-vv-toolkit}
+}
 ```
 
 ## Contributing and license

@@ -1,0 +1,10 @@
+concurrency: 4
+timeout_seconds: 5
+retries: 0
+credentials_env:
+  DemoKey: API_VV_DEMO_KEY
+llm:
+  provider: anthropic
+  model: claude-sonnet-5
+  timeout_seconds: 120
+  temperature: null

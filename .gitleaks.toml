@@ -1,0 +1,7 @@
+# Recorded model replies under results/ contain made-up credentials used in negative auth tests.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake credentials proposed by models for negative test cases"
+regexes = ['''invalid-or-garbage-key-12345''']

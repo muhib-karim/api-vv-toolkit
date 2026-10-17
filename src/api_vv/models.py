@@ -157,6 +157,13 @@ class LLMConfig(Model):
     api_key_env: str = "API_VV_LLM_API_KEY"
     fixtures: str | None = None
     timeout_seconds: float = Field(default=30, gt=0, allow_inf_nan=False)
+    max_tokens: int = Field(default=2048, ge=1)
+    # Newer OpenAI reasoning models reject ``max_tokens`` and require ``max_completion_tokens``.
+    token_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    # Some reasoning models only accept their default temperature; ``None`` omits the field.
+    temperature: float | None = Field(default=0, ge=0, le=2, allow_inf_nan=False)
+    # Some Anthropic models reject a forced tool choice; "auto" lets them call the tool unforced.
+    tool_choice: Literal["tool", "auto"] = "tool"
 
 
 class Config(Model):
