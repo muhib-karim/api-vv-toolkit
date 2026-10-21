@@ -2,10 +2,26 @@
 
 All notable changes to this project are documented here. The project uses semantic versioning.
 
-## [Unreleased]
+## [1.3.0] - 2026-10-21
 
 ### Added
 
+- Accessible, mobile-friendly HTML traceability matrix. Each requirement row lists its tests
+  with endpoint, expected and actual status, latency and verdict, plus a "Why it failed"
+  disclosure. Status is shown as icon and word, never colour alone. Rows stack into cards on
+  narrow screens, light and dark themes follow the system, and a script-free filter shows only
+  requirements that aren't verified.
+- GitHub Pages landing page built by CI from a live run against the bundled demo API: workflow
+  run and commit, gate verdict, the defects it named, the CLI transcript, a contract-drift
+  sample and every evidence file (`scripts/build_site.py`).
+- Composite GitHub Action (`action.yml`): `uses: muhib-karim/api-vv-toolkit@v1` validates,
+  generates (optional property cases and gated LLM proposals), runs, reports and gates, and with
+  `baseline-spec` it also fails on breaking drift. Outputs `gate`, `failed-requirements`,
+  `breaking-changes`, `report-dir` and `junit`. `.github/workflows/action.yml` dogfoods it.
+- A live LLM gate re-run on 2026-10-21 with `claude-opus-5-5`, `claude-sonnet-5` and
+  `gpt-6-sol` (`results/2026-10-21-llm-gate/`). The 2026-10-17 study is kept unchanged.
+- The release workflow builds the wheel and sdist, writes `SHA256SUMS.txt`, and publishes the
+  GitHub release with `RELEASE_NOTES_<tag>.md` as its body.
 - OpenAPI 3.1 alongside 3.0: `type` arrays such as `["string", "null"]`, `examples` maps on
   parameters and media types, and `webhooks`, which are listed on `Spec.webhooks` (and by
   `parse`) but never tested.
