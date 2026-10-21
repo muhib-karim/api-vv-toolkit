@@ -94,7 +94,7 @@ def test_markdown_and_html(plan: Plan) -> None:
     page = html_report(data)
     assert "<b>tags" not in page and "&lt;b&gt;tags" in page
     assert "<script" not in page and "http" not in page.split("<body>")[1]
-    assert '<td class="failed">failed</td>' in page
+    assert 'data-status="failed"' in page and ">failed</span>" in page
     assert "Execution findings" not in html_report(data, matrix_only=True)
     clean = matrix(plan, run_with(plan))
     assert "No execution findings." in markdown(clean)
@@ -153,3 +153,35 @@ def test_junit_parses_back(plan: Plan) -> None:
     assert prop is not None and prop.get("value") == "REQ-003"
     assert root.get("failures") == str(len(root.findall("testcase/failure")))
     assert root.get("skipped") == str(len(root.findall("testcase/skipped")))
+
+
+def test_html_matrix_is_accessible_and_responsive(plan: Plan) -> None:
+    run = run_with(plan, failed=ids_for(plan, "REQ-008"))
+    data = matrix(plan, run)
+    page = html_report(data, gate=["REQ-008"])
+    body = page.split("<body>")[1]
+    # Landmarks, skip link, captioned table with scoped headers.
+    assert '<html lang="en">' in page and 'name="viewport"' in page
+    assert '<a class="skip" href="#matrix">' in body
+    assert "<main" in body and "<header" in body and "<footer" in body
+    assert "<caption>" in body and body.count('scope="col"') == 4
+    # Status is never conveyed by colour alone: icon is decorative, the word is visible.
+    assert 'aria-hidden="true"' in body and "<svg" in body
+    # Stacked layout on narrow screens, dark mode, reduced motion and a no-JS filter.
+    assert "@media (max-width: 720px)" in page
+    assert "prefers-color-scheme: dark" in page
+    assert '<input type="checkbox" id="only-open"' in body and '<label for="only-open"' in body
+    assert "<script" not in page
+    # Requirement -> tests -> result, with the evidence for failures.
+    assert "Gate: FAIL (REQ-008)" in body
+    row = body.split('id="REQ-008"')[1].split("</tr>")[0]
+    assert "deleteWidget" in row and "DELETE /widgets/{widget_id}" in row
+    assert "status: bad" in row and "<details" in row
+    assert f"{len(data.untraced_tests)} untraced tests" in body
+    assert plan.spec.title in body
+
+
+def test_html_without_results_or_gate(plan: Plan) -> None:
+    page = html_report(matrix(plan, None), matrix_only=True)
+    assert "Gate:" not in page
+    assert ">not run</span>" in page
