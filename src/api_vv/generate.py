@@ -365,14 +365,14 @@ def property_cases(
                 changed.parameters.get(param.location, {}).pop(param.name, None)
         add(changed, "property:valid", False, "property")
         changed.name = f"{op.id}: property valid #{index}"
-    targets: list[tuple[str, Schema, Any]] = []
+    targets: list[tuple[str, Schema]] = []
     if op.request_schema is not None and base.has_body:
-        targets.append(("body", op.request_schema, base.body))
-    targets += [(f"{p.location}.{p.name}", p.schema_, p) for p in params]
+        targets.append(("body", op.request_schema))
+    targets += [(f"{param.location}.{param.name}", param.schema_) for param in params]
     for index in range(1, count + 1):
         if not targets:
             break
-        label, schema, _ = rng.choice(targets)
+        label, schema = rng.choice(targets)
         found, value = random_instance(schema, rng)
         path = "" if label == "body" else label
         broken = [item for item in mutations(value, schema, path) if not valid(item[0], schema)]

@@ -1,0 +1,13 @@
+name: api-vv-toolkit CodeQL config
+
+# Evidence and fixtures are not project code, so they are not scanned:
+# - results/**: recorded LLM-gate runs (model replies, generated plans and logs), committed
+#   byte-for-byte as evidence. They must not be edited to silence an alert.
+# - runs/**: local run output (git-ignored), listed in case a scan runs on a working tree.
+# - tests/fixtures/**: contract-drift specs, including a deliberately breaking revision.
+# The package (src/), the tests, the demo API and the scripts stay in scope. Alerts there are
+# fixed, never ignored.
+paths-ignore:
+  - results/**
+  - runs/**
+  - tests/fixtures/**

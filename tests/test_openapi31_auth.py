@@ -222,7 +222,7 @@ def test_invalid_auth_case_runs_against_demo(
     assert [(item.verdict, item.actual_status) for item in run.results] == [("passed", 401)]
 
 
-def test_unsupported_scheme_for_invalid_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unsupported_scheme_for_invalid_auth() -> None:
     spec = secured({"type": "http", "scheme": "bearer"})
     spec.security_schemes["Auth"] = SecurityScheme(type="http", scheme="digest")
     case, _ = one_case(spec, auth="invalid")

@@ -91,7 +91,8 @@ def header_value(value: str, schema: Schema) -> Any:
         if kind == "boolean" and value.lower() in {"true", "false"}:
             return value.lower() == "true"
     except ValueError:
-        pass
+        # Not a number: return the raw text so schema validation reports the type mismatch.
+        return value
     return value
 
 

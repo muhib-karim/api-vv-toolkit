@@ -50,10 +50,11 @@ def main() -> int:
                     if server.poll() is not None:
                         raise RuntimeError("demo server exited; see runs/demo/server.log")
                     try:
-                        if client.get(url + "/health").status_code == 200:
-                            break
+                        ready = client.get(url + "/health").status_code == 200
                     except httpx.HTTPError:
-                        pass
+                        ready = False  # still starting
+                    if ready:
+                        break
                     time.sleep(0.05)
                 else:
                     raise RuntimeError("demo server did not become ready")
