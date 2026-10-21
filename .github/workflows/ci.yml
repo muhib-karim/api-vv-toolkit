@@ -96,6 +96,8 @@ jobs:
       - name: Check the gate named exactly the two seeded defects
         run: |
           grep -Fx 'Gate: FAIL (REQ-003, REQ-008)' runs/demo/cli-output.txt
+      - name: Build the Pages site from this run (preview; deployed from main only)
+        run: python scripts/build_site.py runs/demo site
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,6 +106,7 @@ jobs:
             runs/demo/report.html
             runs/demo/junit.xml
             runs/demo/traceability.csv
+            site/
 
   docker:
     runs-on: ubuntu-latest

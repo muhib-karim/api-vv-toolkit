@@ -1,7 +1,8 @@
 name: Demo report
 
-# Runs the seeded-defect demo against the bundled loopback API and publishes
-# the HTML report and traceability matrix to GitHub Pages.
+# Runs the seeded-defect demo against the bundled loopback API and publishes a landing page
+# with that live run (gate verdict, transcript, evidence files) plus the HTML traceability
+# matrix to GitHub Pages.
 
 on:
   push:
@@ -27,11 +28,9 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -e '.[demo]'
       - run: python scripts/demo.py
+      # Landing page + matrix + raw evidence, built from this run; nothing is committed by hand.
       - name: Assemble site
-        run: |
-          mkdir -p site
-          cp runs/demo/report.html site/index.html
-          cp runs/demo/traceability.csv runs/demo/junit.xml runs/demo/cli-output.txt site/
+        run: python scripts/build_site.py runs/demo site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
