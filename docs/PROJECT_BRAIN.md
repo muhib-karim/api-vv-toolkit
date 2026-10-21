@@ -4,15 +4,16 @@ Handoff note for the next session. Short on purpose; details live in TASKS.md an
 
 ## Status
 
-v1.3.0 upgrade on branch `upgrade/v1.3.0`. Slice 1 (OpenAPI 3.1 + auth, seeded negative and
-property generation, `api-vv diff`, CI gates) is done: it was reviewed and pushed, CI and CodeQL were
-green on `37eb9a7` (CI run 39660210674, CodeQL run 39660210679, 0 alerts), and 256 tests pass
-at about 98% coverage.
+Slice 1 is done (CI and CodeQL green on `43961d2`). In slice 2, done so far: HTML matrix
+redesign, Pages landing (`scripts/build_site.py`), composite `action.yml` plus dogfood workflow
+(green), live LLM re-run (`results/2026-10-21-llm-gate/`), 1.3.0 bump, CHANGELOG, release notes
+and the notes-driven `release.yml`.
 
 ## Next step
 
-Wait for the slice 2 message: DoD 4 (HTML/JUnit report and Pages live run), 5 (action.yml plus
-dogfood), 7 (LLM gate re-run), 8 (README, CHANGELOG [1.3.0], version bump, HANDOFF) and 9.
+README refresh (badges, screenshot `docs/assets/traceability-matrix.png`, Action usage,
+mermaid, roadmap, links), SKILLS_USED, TASKS and HANDOFF. Then push and wait for green, then
+print PU_DONE.
 
 ## Decisions
 
@@ -30,3 +31,4 @@ dogfood), 7 (LLM gate re-run), 8 (README, CHANGELOG [1.3.0], version bump, HANDO
 ## Session log
 2026-10-21 19:20Z claude-code/claude-opus-5-5: slice 1 done locally (T1-T4 plus review fixes); next push and CI.
 2026-10-21 19:25Z claude-code/claude-opus-5-5: slice 1 pushed; CI and CodeQL green and 0 alerts; waiting for slice 2.
+2026-10-21 19:40Z claude-code/claude-opus-5-5: slice 2 features done (report, site, action, LLM re-run, release); README and handoff next.

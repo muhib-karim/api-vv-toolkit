@@ -17,7 +17,7 @@
   </g>
 
   <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
-    <text x="72" y="92" font-size="16" font-weight="600" letter-spacing="3" fill="#7dd3fc">OPENAPI · REQUIREMENTS · TRACEABILITY</text>
+    <text x="72" y="92" font-size="16" font-weight="600" letter-spacing="3" fill="#7dd3fc">OPENAPI 3.0 / 3.1 · DRIFT GATE · TRACEABILITY</text>
     <text x="70" y="168" font-size="64" font-weight="700" fill="#f8fafc">api-vv-toolkit</text>
     <rect x="72" y="190" width="120" height="4" rx="2" fill="url(#accent)"/>
     <text x="72" y="236" font-size="24" fill="#cbd5e1">From OpenAPI spec and written requirements</text>

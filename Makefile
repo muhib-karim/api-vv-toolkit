@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
 
-.PHONY: install lint typecheck test demo check llm-gate llm-gate-report
+.PHONY: install lint typecheck test demo check llm-gate llm-gate-report screenshot
 
 install:
 	python3 -m venv .venv
@@ -28,3 +28,8 @@ llm-gate:
 
 llm-gate-report:
 	$(PYTHON) scripts/llm_gate_summary.py --report results/2026-10-17-llm-gate
+
+# Headless capture of the HTML matrix used in the README (run `make demo` first).
+screenshot:
+	chromium --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1280,1180 \
+	  --screenshot=docs/assets/traceability-matrix.png "file://$(CURDIR)/runs/demo/report.html"
