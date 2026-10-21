@@ -14,7 +14,9 @@ from jsonschema import Draft202012Validator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from examples.demo_api.app import CREATE_SCHEMA, SPEC  # noqa: E402
 
-DOCUMENTED = Draft202012Validator(SPEC.operations["createWidget"].request_schema)
+_CREATE_REQUEST = SPEC.operations["createWidget"].request_schema
+assert _CREATE_REQUEST is not None, "demo createWidget documents a request body"
+DOCUMENTED = Draft202012Validator(_CREATE_REQUEST)
 IMPLEMENTED = Draft202012Validator(CREATE_SCHEMA)
 
 
@@ -97,12 +99,12 @@ def report(root: Path) -> None:
     groups: dict[tuple[str, str], list[dict[str, object]]] = {}
     for row in rows:
         groups.setdefault((str(row["model"]), str(row["variant"])), []).append(row)
-    lines = [
+    header = (
         "| Model | Prompt | Runs | Model calls / run | Proposals | Accepted | Acceptance |"
         " LLM cases executed | Failed on seeded defects | Wrong expectations |"
-        " Seeded defects hit |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
-    ]
+        " Seeded defects hit |"
+    )
+    lines = [header, "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     table = []
     for (model, variant), runs in sorted(groups.items(), key=lambda kv: kv[0]):
 

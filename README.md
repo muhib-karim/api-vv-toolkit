@@ -4,11 +4,14 @@
 
 <p align="center">
   <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/codeql.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/action.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/action.yml/badge.svg" alt="Action dogfood"></a>
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-97%25%20(gate%20%E2%89%A585%25)-brightgreen.svg" alt="Coverage 97%, CI gate at 85%"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/muhib-karim/api-vv-toolkit" alt="License: MIT"></a>
   <img src="https://img.shields.io/github/languages/top/muhib-karim/api-vv-toolkit" alt="Top language">
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
   <a href="https://github.com/muhib-karim/api-vv-toolkit/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit" alt="Release"></a>
-  <a href="https://muhib-karim.github.io/api-vv-toolkit/"><img src="https://img.shields.io/badge/demo-seeded%20defects-brightgreen.svg" alt="Demo report"></a>
+  <a href="https://muhib-karim.github.io/api-vv-toolkit/"><img src="https://img.shields.io/badge/live%20sample%20run-GitHub%20Pages-brightgreen.svg" alt="Live sample run"></a>
   <a href="#measured-results-the-llm-gate-against-live-models"><img src="https://img.shields.io/badge/results-measured%20live-blue.svg" alt="Measured results"></a>
   <a href="CITATION.cff"><img src="https://img.shields.io/badge/cite-CITATION.cff-informational.svg" alt="Cite"></a>
 </p>
@@ -20,10 +23,22 @@ tests from them, runs the tests against a live service and reports which require
 verified, which failed and which have no test at all. Every test records the requirement it
 checks, so a failure points back to what the service was supposed to do.
 
-**Seeded-defect demo (not an external production audit):** [the HTML traceability report](https://muhib-karim.github.io/api-vv-toolkit/) from the
-seeded-defect demo below, rebuilt by CI from `main` on every push
-([CSV matrix](https://muhib-karim.github.io/api-vv-toolkit/traceability.csv),
-[JUnit XML](https://muhib-karim.github.io/api-vv-toolkit/junit.xml)).
+**Live sample run (seeded-defect demo, not an external production audit):** [the Pages site](https://muhib-karim.github.io/api-vv-toolkit/)
+is rebuilt by CI from `main` on every push. It runs the toolkit against the bundled demo API and
+publishes the gate verdict, the [traceability matrix](https://muhib-karim.github.io/api-vv-toolkit/report.html),
+[JUnit XML](https://muhib-karim.github.io/api-vv-toolkit/junit.xml),
+[CSV](https://muhib-karim.github.io/api-vv-toolkit/traceability.csv) and the CLI transcript of
+that run.
+
+```yaml
+# .github/workflows/api.yml in your repository
+- uses: muhib-karim/api-vv-toolkit@v1
+  with:
+    spec: openapi.yaml
+    requirements: requirements.yaml
+    base-url: http://localhost:8000
+    baseline-spec: contracts/published.yaml   # optional: also fail on breaking drift
+```
 
 An optional LLM step can suggest extra test scenarios. Its suggestions are checked against the
 spec before they enter the plan, and the prompt, raw reply and accept/reject reason are stored
@@ -31,30 +46,46 @@ with the plan so a reviewer can see why each one was kept or dropped.
 
 ## Key features
 
-- **OpenAPI 3.0/3.1 parsing** into typed pydantic models, with local `$ref` resolution and
-  explicit errors for unsupported input (remote/recursive refs, non-JSON bodies).
+- **OpenAPI 3.0 and 3.1 parsing** into typed pydantic models: 3.1 `type` arrays, `examples`
+  maps, `webhooks` (listed, never tested), local `$ref` resolution, and explicit errors for
+  unsupported input (remote or recursive refs, non-JSON bodies).
+- **Contract drift gate:** `api-vv diff old.yaml new.yaml` classifies every change as breaking or
+  non-breaking for existing clients and exits 1 on a breaking one.
+- **Seeded negative and property-based cases:** boundaries from `minimum`/`maximum`,
+  `minLength`/`maxLength`, item counts, `enum` and `pattern`, plus
+  `--property-cases N --seed S` for random valid (expect 2xx) and single-violation (expect 4xx)
+  requests. The same seed regenerates the same plan.
+- **Auth applied from environment variable names only:** bearer, basic, and apiKey in header,
+  query or cookie. Each secured operation also gets missing and invalid credential negatives.
+- **Reusable GitHub Action** (`uses: muhib-karim/api-vv-toolkit@v1`) with gate, drift and report
+  outputs, dogfooded in this repository.
 - **Requirements file validated against the spec**: each requirement selects the operations,
   responses and check types it covers.
-- **Six rule-based generators** (happy path, schema boundaries, parameter boundaries, required
-  omission, auth required, status coverage) producing deterministic, fingerprinted test ids.
+- **Rule-based generators** (happy path, schema and parameter boundaries, required omission,
+  missing and invalid auth, status coverage, seeded property cases) producing deterministic,
+  fingerprinted test ids.
 - **Reviewable YAML test plan** between generation and execution, re-validated before it runs.
 - **Async executor** (httpx) checking status codes, JSON Schema of response bodies, documented
   headers and optional latency budgets.
-- **Traceability reports** in Markdown, self-contained HTML, CSV and JUnit XML, plus a
-  configurable exit-code gate for CI.
+- **Traceability reports:** an accessible, mobile-friendly HTML matrix (requirement → tests →
+  result, with why each failure failed), Markdown, CSV and JUnit XML, plus a configurable
+  exit-code gate for CI.
 - **Optional LLM-assisted scenarios** (OpenAI-compatible or Anthropic, or an offline `mock`
   replay) behind a spec validation gate, with prompt, raw reply and accept/reject reason stored
   in the plan.
-- **Six-command CLI** (`api-vv parse | validate-requirements | generate | run | report | trace`),
-  a Dockerfile and a release workflow that publishes a wheel, sdist and checksums.
+- **Seven-command CLI** (`api-vv parse | validate-requirements | generate | run | report | trace | diff`),
+  a Dockerfile, and a release workflow that publishes a wheel, sdist and checksums with the
+  committed release notes.
 
 ## Inspect the demo
 
 The demo runs against the bundled local widget API with two deliberately seeded defects. It demonstrates traceability and failure reporting, not a production service certification. No paid model call is needed for this demo.
 
-![Captured demo report](docs/assets/demo-report.png)
+![HTML traceability matrix from the seeded-defect demo: gate failed on REQ-003 and REQ-008, each requirement listing its tests, endpoint, expected and actual status and verdict](docs/assets/traceability-matrix.png)
 
-*Screenshot captured from the public demo on 11 October 2026. It is an example report, not a current health monitor.*
+*The 1.3.0 HTML matrix from `make demo`, rendered by headless Chromium on 21 October 2026
+(`make screenshot`). Below 720px the rows become cards, and dark mode follows the system
+setting. It is an example report, not a current health monitor.*
 
 ## The problem
 
@@ -82,21 +113,27 @@ This tool derives the matrix from the same data the tests run from, so it cannot
 
 ```mermaid
 flowchart LR
-    S[OpenAPI 3.0/3.1 spec] --> P[Parse and resolve local refs]
-    R[Requirements YAML] --> V[Validate requirements against spec]
-    P --> G1[Rule-based generators]
+    subgraph inputs[Inputs]
+        S[OpenAPI 3.0 / 3.1 spec]
+        R[Requirements YAML]
+        C[Config: gate rules,<br/>credential env var names]
+    end
+    S --> P[spec.py<br/>parse, resolve local refs,<br/>3.0 nullable to 3.1 types]
+    R --> V[validate requirements<br/>against the spec]
+    P --> G1[generate.py + synth.py<br/>happy path, boundaries, pattern,<br/>auth negatives, seeded property cases]
     V --> G1
-    P --> G2[LLM-assisted generator]
-    V --> G2
-    G2 --> GATE{Validation gate:<br/>schema, known operation,<br/>documented response}
-    GATE -- rejected --> AUDIT[(Audit log in plan:<br/>prompt, raw response, reason)]
+    P --> G2[llm.py<br/>optional model proposals]
+    G2 --> GATE{Validation gate:<br/>schema, known operation,<br/>allowed status}
+    GATE -- rejected --> AUDIT[(Audit in plan:<br/>prompt, raw reply, reason)]
     GATE -- accepted --> PLAN
-    G1 --> PLAN[YAML test plan]
-    PLAN --> HR[Human review and edit]
-    HR --> X[Async executor]
-    X --> VER[Verdicts: status, body schema,<br/>headers, latency budget]
-    VER --> M[Traceability matrix]
-    M --> OUT[Markdown, HTML, CSV, JUnit XML<br/>and exit-code gate]
+    G1 --> PLAN[YAML test plan<br/>reviewable, digest-pinned]
+    PLAN --> X[execute.py<br/>async httpx, auth from env]
+    C --> X
+    X --> M[report.py<br/>evidence-based matrix]
+    M --> OUT[HTML matrix, Markdown,<br/>CSV, JUnit XML, exit-code gate]
+    S -. old vs new .-> D[diff.py<br/>breaking vs non-breaking drift]
+    OUT --> CI[action.yml in CI:<br/>job summary, outputs, Pages site]
+    D --> CI
 ```
 
 1. **Parse.** The OpenAPI document is loaded into typed pydantic models (operations, parameters,
@@ -112,6 +149,9 @@ flowchart LR
    | `parameter-boundary` | the same rules applied to path, query, header and cookie parameters |
    | `required-omission` | a missing required body or parameter |
    | `auth-required` | the request with credentials removed, expecting the documented 401/403 |
+   | `auth-invalid` | a fake, scheme-shaped credential (bearer, basic or apiKey), expecting the documented 401/403 |
+   | `schema-boundary` (`pattern`) | a value that matches the regex for the happy path (sampled from the pattern), and one that breaks only the pattern |
+   | `property` | with `--property-cases N --seed S`: N random schema-valid requests (expect success) and N with one random violation each (expect 4xx) |
    | `status-coverage` | a disabled review case for each documented response no generator reached |
 
    Cases are deduplicated by a fingerprint of the request, and the fingerprint becomes the case
@@ -146,9 +186,14 @@ api-vv generate --spec openapi.yaml --requirements requirements.yaml --out plan.
 api-vv run --plan plan.yaml --base-url http://localhost:8000 --config config.yaml --out results.yaml
 api-vv report --plan plan.yaml --results results.yaml --out-dir reports/
 api-vv trace --plan plan.yaml --results results.yaml --format csv --out matrix.csv
+
+# seeded property-based cases (same seed, same plan)
+api-vv generate --spec openapi.yaml --requirements requirements.yaml --property-cases 20 --seed 7 --out plan.yaml
+# contract drift between the published and the proposed contract
+api-vv diff contracts/published.yaml openapi.yaml --format md
 ```
 
-Exit codes: `0` gate passed, `1` gate failed, `2` invalid input.
+Exit codes: `0` gate passed (or no breaking drift), `1` gate failed (or breaking drift), `2` invalid input.
 
 A requirement names the operations and responses it covers. The optional `checks` list narrows
 the match to specific generated checks:
@@ -176,7 +221,50 @@ generated tests. They show as not covered, which is accurate.
 
 The config file sets concurrency, timeouts, retries, the gate, the LLM provider and the names of
 environment variables that hold credentials (`credentials_env: {DemoKey: API_VV_DEMO_KEY}`).
-Secrets themselves never appear in config, plans, results or reports.
+Values must be variable names. A scheme with no entry reads `API_VV_AUTH_<SCHEME>` (for example
+`API_VV_AUTH_BEARERAUTH`). Secrets themselves never appear in config, plans, results or reports.
+
+### GitHub Action
+
+```yaml
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d   # start the service under test
+      - id: vv
+        uses: muhib-karim/api-vv-toolkit@v1
+        env:
+          API_VV_AUTH_BEARERAUTH: ${{ secrets.API_TOKEN }}   # credentials by env var name only
+        with:
+          spec: openapi.yaml
+          requirements: requirements.yaml
+          base-url: http://localhost:8000
+          property-cases: "10"
+          seed: "1"
+          baseline-spec: contracts/published.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: api-vv-report, path: api-vv-report/}
+```
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `spec` | required | OpenAPI 3.0 or 3.1 document |
+| `requirements` | | requirements YAML, required with `base-url` |
+| `base-url` | | service origin; leave empty for a drift-only check |
+| `config` | | config YAML (gate rules, `credentials_env`, LLM provider) |
+| `property-cases`, `seed` | `0`, `0` | seeded property cases per operation |
+| `llm` | `false` | add model proposals through the spec gate (provider from `config`) |
+| `baseline-spec` | | previous contract to diff against `spec` |
+| `fail-on-gate`, `fail-on-breaking` | `true`, `true` | whether a failed gate or breaking drift fails the step |
+| `out-dir`, `python-version` | `api-vv-report`, `3.12` | report directory and Python used |
+
+Outputs: `gate` (`pass`, `fail`, `skipped`), `failed-requirements`, `breaking-changes`,
+`report-dir` and `junit`. The Markdown report and the drift table are written to the job
+summary. [`action.yml`](.github/workflows/action.yml) in this repository runs the action against
+the demo API and both drift fixtures on every push.
 
 
 ### Install a release build
@@ -184,7 +272,7 @@ Secrets themselves never appear in config, plans, results or reports.
 Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
 
 ```sh
-pip install https://github.com/muhib-karim/api-vv-toolkit/releases/download/v1.2.0/api_vv_toolkit-1.2.0-py3-none-any.whl
+pip install https://github.com/muhib-karim/api-vv-toolkit/releases/download/v1.3.0/api_vv_toolkit-1.3.0-py3-none-any.whl
 ```
 
 Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/api-vv-toolkit/releases/latest).
@@ -205,9 +293,9 @@ to `runs/demo/`. Output from a run:
 $ make demo
 .venv/bin/python scripts/demo.py
 Validated 12 requirements
-Generated 31 cases (31 enabled)
+Generated 32 cases (32 enabled)
 LLM proposals: 1 accepted, 1 rejected
-Executed: 29 passed, 2 failed, 0 skipped
+Executed: 30 passed, 2 failed, 0 skipped
 Gate: FAIL (REQ-003, REQ-008)
 Wrote Markdown, HTML, CSV and JUnit reports to runs/demo
 Gate: FAIL (REQ-003, REQ-008)
@@ -251,7 +339,7 @@ The failing REQ-003 case, as it appears in the plan:
   requirement_ids: [REQ-003]
 ```
 
-The matrix also lists 20 untraced tests: boundary and type checks that ran but that no
+The matrix also lists 21 untraced tests: boundary, type and auth checks that ran but that no
 requirement claims. They are shown so a reviewer can decide whether a requirement is missing
 or the tests are unnecessary.
 
@@ -312,7 +400,7 @@ requirements, eight of which (REQ-003 to REQ-010) opt in to model proposals in
 [`examples/llm_experiment/requirements.yaml`](examples/llm_experiment/requirements.yaml). Each
 model ran three times per prompt version. Every accepted case was then executed against the demo
 service. *v1.1.0 prompt* is the 1.1.0 prompt and requirement selection (it asks the model about
-all 12 requirements); *v1.2.0 prompt* is this release. Both use the same request options, which
+all 12 requirements); *v1.2.0 prompt* is the 1.2.0 prompt, unchanged in 1.3.0. Both use the same request options, which
 newer models need (see above).
 
 | Model | Prompt | Runs | Model calls / run | Proposals | Accepted | Acceptance | LLM cases executed | Failed on seeded defects | Wrong expectations | Seeded defects hit |
@@ -368,6 +456,20 @@ the defect attribution is specific to this demo. The numbers say how the gate an
 here, not how any model performs on real services. Rule-based cases already catch both seeded
 defects on their own; the question measured here is whether model cases add signal or noise.
 
+**Re-run on 2026-10-21 (live, current models, 1.3.0 code).** The LLM path is byte-identical
+to 1.2.0, so these rows compare with the `v1.2.0` rows above. Haiku 4.5 was not re-run.
+Details are in [`results/2026-10-21-llm-gate/`](results/2026-10-21-llm-gate/README.md).
+
+| Model (run 2026-10-21) | Runs | Proposals | Accepted | Acceptance | LLM cases executed | Failed on seeded defects | Wrong expectations | Seeded defects hit |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| claude-opus-5-5 | 3 | 110 | 105 | 95% | 82 | 19 | 6 | defect-1, defect-2 |
+| claude-sonnet-5 | 3 | 104 | 79 | 76% | 64 | 9 | 7 | defect-1, defect-2 |
+| gpt-6-sol | 3 | 63 | 60 | 95% | 39 | 7 | 0 | defect-1 |
+
+The 2026-10-17 findings hold. Acceptance stays high once the prompt lists the allowed targets.
+Opus and Sonnet proposals reach both seeded defects, and gpt-6-sol's reach the `maxLength`
+defect. Accepted cases still include some wrong expectations.
+
 **Reproduce (live, billed).** With `API_VV_LLM_BASE_URL` and `API_VV_LLM_API_KEY` set:
 
 ```bash
@@ -398,21 +500,31 @@ make llm-gate-report   # rebuilds summary.json and table.md from the run directo
 
 - OpenAPI support is a subset: JSON request bodies, scalar parameters with `form`/`simple`
   style, local refs only. XML and multipart request bodies and `deepObject` parameters are
-  rejected. Callbacks, webhooks and links are ignored.
+  rejected. Callbacks, webhooks and links are ignored (webhooks are listed by `parse`).
+- `api-vv diff` compares the parsed contract. A change inside `oneOf`/`anyOf` that adds or
+  removes a branch, or one in `not`/`if`, is reported as an unanalysed breaking change for
+  manual review (it fails closed).
 - Generated requests are stateless. There is no setup/teardown or chaining (for example, create
   then read the created id). Stateful flows are written as edited or hand-added plan cases.
-- Value synthesis handles common JSON Schema keywords and formats. Complex `oneOf`/`anyOf` bodies
-  may need an authored example.
+- Value synthesis handles common JSON Schema keywords, formats and regex patterns (no
+  lookarounds). Complex `oneOf`/`anyOf` bodies may need an authored example. Property cases
+  keep path parameters at their example values, so they exercise payloads, not resource ids.
 - Response bodies are read fully into memory, and schema `pattern`s from the spec run
   as-is, so point it at specs and services you trust.
-- The OpenAI and Anthropic adapters are tested against mocked HTTP responses, not live endpoints.
+- The OpenAI and Anthropic adapters are unit-tested against mocked HTTP responses. Live
+  behaviour is only what the recorded studies in `results/` measured.
 
 ## Roadmap
 
+Shipped in 1.3.0: OpenAPI 3.1, env-name auth with invalid-credential negatives, `pattern` and
+seeded property cases, `api-vv diff`, the composite Action, the accessible HTML matrix and the
+CI-built Pages run. Next:
+
 - Stateful sequences (create, read, delete) with values extracted from earlier responses.
 - Requirement import from CSV and ReqIF.
-- Diff reports between two runs of the same plan.
-- Property-based value generation for bodies without examples.
+- Run-to-run diff reports for the same plan (which verdicts changed).
+- Drift-aware requirements: flag requirements whose covered operation changed in `api-vv diff`.
+- SARIF output so gate failures show up as code-scanning annotations.
 
 ## Testing
 
@@ -425,11 +537,15 @@ make test       # pytest with coverage (fails under 85%)
 make demo       # seeded-defect demo; exits non-zero unless exactly REQ-003 and REQ-008 fail
 ```
 
-The suite has 129 pytest tests covering the parser, generators, executor, LLM adapters,
-reports and CLI. The executor tests run the demo app in-process through
+The suite has 260 pytest tests (97% branch coverage at 1.3.0) covering the parser, generators,
+property synthesis, drift classification, executor, LLM adapters, reports, the Pages builder and
+the CLI. The executor tests run the demo app in-process through
 `httpx.ASGITransport`, and the test suite blocks sockets entirely, so no network or model
-calls are made. CI ([ci.yml](.github/workflows/ci.yml)) runs lint, type checks and tests on
-Python 3.11 and 3.12, then the demo and a Docker build smoke test.
+calls are made. CI ([ci.yml](.github/workflows/ci.yml)) runs ruff, `mypy --strict`, and tests
+with the 85% coverage gate on Python 3.11 and 3.12. It also checks the drift fixtures, builds and
+smoke-tests the wheel, runs gitleaks, the demo (and builds the Pages preview) and a Docker smoke
+test. [CodeQL](.github/workflows/codeql.yml) and the [Action dogfood](.github/workflows/action.yml)
+run alongside, and Dependabot keeps pip and Actions dependencies current.
 
 ## Project structure
 
@@ -438,14 +554,19 @@ src/api_vv/
   cli.py        argparse entry point (api-vv) and exit-code gate
   spec.py       OpenAPI loading and local $ref resolution
   models.py     pydantic models: spec, requirements, config, plan, results
-  generate.py   rule-based generators and case fingerprinting
+  generate.py   rule-based generators, property cases and case fingerprinting
+  synth.py      seeded value synthesis: regex sampler and random schema-valid instances
+  diff.py       contract drift classification (api-vv diff)
   llm.py        optional LLM proposals (OpenAI-compatible, Anthropic, mock) and validation gate
   execute.py    async httpx executor and response verdicts
   report.py     traceability matrix; Markdown, HTML, CSV and JUnit output
   io.py         YAML/JSON reading and writing
 examples/demo_api/  Starlette demo service with two seeded defects, its spec and requirements
 scripts/demo.py     end-to-end demo runner used by `make demo` and CI
-tests/              pytest suite
+scripts/build_site.py  Pages landing built by CI from a demo run
+action.yml          composite GitHub Action (uses: muhib-karim/api-vv-toolkit@v1)
+results/            recorded live LLM gate studies (2026-10-17, 2026-10-21)
+tests/              pytest suite; tests/fixtures/diff/ holds the drift fixture specs
 docs/               banner, screenshots, sample report and CSV matrix
 ```
 
@@ -459,10 +580,19 @@ button reads [`CITATION.cff`](CITATION.cff)):
   author  = {Karim, Muhib},
   title   = {api-vv-toolkit: requirements-traced API verification with a gated LLM test generator},
   year    = {2026},
-  version = {1.2.0},
+  version = {1.3.0},
   url     = {https://github.com/muhib-karim/api-vv-toolkit}
 }
 ```
+
+## Links
+
+- Live sample run: <https://muhib-karim.github.io/api-vv-toolkit/>
+- Releases and checksums: <https://github.com/muhib-karim/api-vv-toolkit/releases>
+- [CHANGELOG.md](CHANGELOG.md), [RELEASE_NOTES_v1.3.0.md](RELEASE_NOTES_v1.3.0.md)
+- LLM gate studies: [2026-10-17](results/2026-10-17-llm-gate/README.md),
+  [2026-10-21](results/2026-10-21-llm-gate/README.md)
+- [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CITATION.cff](CITATION.cff)
 
 ## Contributing and license
 

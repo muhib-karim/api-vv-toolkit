@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Schema = dict[str, Any] | bool
 Priority = Literal["must", "should", "could"]
 GateStatus = Literal["failed", "not covered", "partially covered"]
+# Config names where a credential lives, never the credential itself.
+EnvName = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
 
 
 class Model(BaseModel):
@@ -39,6 +41,13 @@ class SecurityScheme(Model):
     location: Literal["header", "query", "cookie"] | None = None
     scheme: str | None = None
 
+    @property
+    def supported(self) -> bool:
+        """Whether execution knows where this scheme's credential goes."""
+        if self.type == "apiKey":
+            return bool(self.location and self.name)
+        return self.type in {"oauth2", "openIdConnect"} or self.scheme in {"basic", "bearer"}
+
 
 class Operation(Model):
     id: str
@@ -61,6 +70,7 @@ class Spec(Model):
     title: str
     operations: dict[str, Operation]
     security_schemes: dict[str, SecurityScheme] = Field(default_factory=dict)
+    webhooks: list[str] = Field(default_factory=list)
 
 
 class Coverage(Model):
@@ -98,7 +108,7 @@ class Case(Model):
     has_body: bool = False
     expected_status: str = Field(pattern=r"^(?:[1-5][0-9]{2}|[1-5]XX|default)$")
     negative: bool = False
-    auth: Literal["configured", "omit"] = "configured"
+    auth: Literal["configured", "omit", "invalid"] = "configured"
     enabled: bool = True
     review_reason: str | None = None
     generators: list[str]
@@ -127,6 +137,9 @@ class Plan(Model):
     requirements: Requirements
     cases: list[Case]
     llm_audit: list[Audit] = Field(default_factory=list)
+    # Property-based generation settings; a plan with the same seed regenerates identically.
+    seed: int | None = None
+    property_cases: int = Field(default=0, ge=0, le=100)
 
     @model_validator(mode="after")
     def unique_ids(self) -> Plan:
@@ -170,7 +183,8 @@ class Config(Model):
     concurrency: int = Field(default=5, ge=1, le=100)
     timeout_seconds: float = Field(default=10, gt=0, allow_inf_nan=False)
     retries: int = Field(default=0, ge=0, le=5)
-    credentials_env: dict[str, str] = Field(default_factory=dict)
+    # Security scheme name -> environment variable name; unset schemes use API_VV_AUTH_<SCHEME>.
+    credentials_env: dict[str, EnvName] = Field(default_factory=dict)
     # Pydantic copies mutable defaults per instance.
     gate_priorities: list[Priority] = ["must"]
     gate_statuses: list[GateStatus] = ["failed", "not covered", "partially covered"]

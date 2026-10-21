@@ -1,12 +1,16 @@
 name: Release
 
+# On a v* tag: test, build wheel + sdist with SHA256SUMS.txt, and publish the GitHub release
+# with the committed RELEASE_NOTES_<tag>.md as its body. The floating major tag (v1) used by
+# `uses: muhib-karim/api-vv-toolkit@v1` is moved by a maintainer after the release is checked.
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and attach artifacts to (e.g. v1.1.0)"
+        description: "Existing tag to build and attach artifacts to (e.g. v1.3.0)"
         required: true
 
 permissions:
@@ -24,27 +28,38 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Release notes and version match the tag
+        run: |
+          test -f "RELEASE_NOTES_${TAG}.md" || { echo "::error::missing RELEASE_NOTES_${TAG}.md"; exit 1; }
+          VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          test "v${VERSION}" = "$TAG" || { echo "::error::pyproject version ${VERSION} does not match ${TAG}"; exit 1; }
       - name: Test
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev,demo]'
-          python -m pytest -q
+          ruff check .
+          mypy --strict src
+          python -m pytest -q -p no:cacheprovider
       - name: Build sdist and wheel
         run: |
           python -m pip install build
           python -m build
           VERSION="${TAG#v}"
           ls dist | grep -q "$VERSION" || { echo "dist does not match $TAG"; ls dist; exit 1; }
-          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
-      - name: Check the wheel installs
+          cd dist && sha256sum ./* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Check the wheel installs and runs
         run: |
-          python -m venv /tmp/v && /tmp/v/bin/pip install dist/*.whl && /tmp/v/bin/pip show "$(basename $GITHUB_REPOSITORY)"
+          python -m venv /tmp/v
+          /tmp/v/bin/pip install dist/*.whl
+          test "$(cd /tmp && /tmp/v/bin/api-vv --version)" = "${TAG#v}"
       - name: Publish to the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file "RELEASE_NOTES_${TAG}.md"
           else
-            gh release create "$TAG" dist/* --title "$TAG" --notes-from-tag --verify-tag
+            gh release create "$TAG" dist/* --title "$TAG" \
+              --notes-file "RELEASE_NOTES_${TAG}.md" --verify-tag
           fi

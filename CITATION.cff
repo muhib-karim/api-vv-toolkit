@@ -13,8 +13,8 @@ authors:
 repository-code: "https://github.com/muhib-karim/api-vv-toolkit"
 url: "https://muhib-karim.github.io/api-vv-toolkit/"
 license: MIT
-version: 1.2.0
-date-released: "2026-10-18"
+version: 1.3.0
+date-released: "2026-10-21"
 keywords:
   - api-testing
   - verification-and-validation
