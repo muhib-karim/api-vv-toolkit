@@ -45,6 +45,16 @@ def parser() -> argparse.ArgumentParser:
                 "--llm", action="store_true", help="enable configured provider (default: mock)"
             )
             sub.add_argument("--config")
+            sub.add_argument(
+                "--property-cases",
+                type=int,
+                default=0,
+                metavar="N",
+                help="add N random valid and N random invalid requests per operation",
+            )
+            sub.add_argument(
+                "--seed", type=int, default=0, help="seed for --property-cases (default: 0)"
+            )
     for name in ("run", "report", "trace"):
         sub = commands.add_parser(name)
         sub.add_argument("--plan", required=True)
@@ -91,7 +101,7 @@ def dispatch(args: argparse.Namespace) -> int:
         if args.command == "validate-requirements":
             print(f"Validated {len(requirements.requirements)} requirements")
             return 0
-        plan = generate(spec, requirements)
+        plan = generate(spec, requirements, seed=args.seed, property_cases=args.property_cases)
         if args.llm:
             plan = asyncio.run(augment(plan, load_config(args.config).llm))
         write_data(args.out, plan)

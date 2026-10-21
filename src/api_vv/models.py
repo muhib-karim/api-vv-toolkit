@@ -130,6 +130,9 @@ class Plan(Model):
     requirements: Requirements
     cases: list[Case]
     llm_audit: list[Audit] = Field(default_factory=list)
+    # Property-based generation settings; a plan with the same seed regenerates identically.
+    seed: int | None = None
+    property_cases: int = Field(default=0, ge=0, le=100)
 
     @model_validator(mode="after")
     def unique_ids(self) -> Plan:

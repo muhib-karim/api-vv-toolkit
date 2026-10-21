@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import copy
 import math
-from collections.abc import Iterator
+import random
+import re
+from collections.abc import Callable, Iterator
 from typing import Any, Literal
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -12,6 +14,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 from api_vv.io import fingerprint
 from api_vv.models import Case, Operation, Parameter, Plan, Requirements, Schema, Spec
 from api_vv.spec import validate_requirements
+from api_vv.synth import FORMATS, random_instance, regex_example
+
+MAX_PROPERTY_CASES = 100
 
 
 def valid(value: Any, schema: Schema) -> bool:
@@ -65,18 +70,16 @@ def sample(schema: Schema) -> Any:
         return True
     if kind == "null":
         return None
-    formats = {
-        "date": "2026-01-01",
-        "date-time": "2026-01-01T00:00:00Z",
-        "email": "test@example.invalid",
-        "uuid": "00000000-0000-4000-8000-000000000001",
-        "uri": "https://example.invalid/item",
-        "hostname": "example.invalid",
-        "ipv4": "192.0.2.1",
-        "ipv6": "2001:db8::1",
-    }
-    if schema.get("format") in formats:
-        return formats[schema["format"]]
+    if schema.get("format") in FORMATS:
+        return FORMATS[schema["format"]]
+    if "pattern" in schema:
+        # Minimal match first, then a few seeded tries to also satisfy length bounds.
+        candidates = [regex_example(schema["pattern"])]
+        rng = random.Random(schema["pattern"])
+        candidates += [regex_example(schema["pattern"], rng) for _ in range(20)]
+        for candidate in candidates:
+            if candidate is not None and valid(candidate, schema):
+                return candidate
     length = max(schema.get("minLength", 1), 1)
     length = min(length, schema.get("maxLength", length))
     if length > 10000:
@@ -108,6 +111,16 @@ def mutations(value: Any, schema: Schema, path: str) -> Iterator[tuple[Any, str]
                 for offset, label in ((-1, "below"), (0, "at"), (1, "above")):
                     if size + offset >= 0:
                         yield "x" * (size + offset), f"boundary:{path}:{bound}:{label}"
+    if isinstance(value, str) and isinstance(schema.get("pattern"), str):
+        pattern = schema["pattern"]
+        low, high = schema.get("minLength", 0), schema.get("maxLength", 10000)
+        sizes = sorted({max(low, 1), min(max(low, 1), high), len(value)})
+        candidates = [char * size for size in sizes for char in "!0a- "] + [""]
+        misses = [item for item in candidates if not re.search(pattern, item)]
+        # Prefer a value that breaks only the pattern, not the length bounds as well.
+        in_bounds = [item for item in misses if low <= len(item) <= high]
+        if misses:
+            yield (in_bounds or misses)[0], f"pattern:{path}"
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         for bound in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
             if bound in schema:
@@ -226,7 +239,9 @@ def deduplicate(cases: list[Case]) -> list[Case]:
     return list(merged.values())
 
 
-def operation_cases(op: Operation, spec: Spec) -> list[Case]:
+def operation_cases(
+    op: Operation, spec: Spec, *, rng: random.Random | None = None, property_count: int = 0
+) -> list[Case]:
     success = next((code for code in op.responses if code.startswith("2")), None)
     error = next((code for code in ("422", "400", "4XX") if code in op.responses), None)
     base = Case(
@@ -288,6 +303,8 @@ def operation_cases(op: Operation, spec: Spec) -> list[Case]:
                 changed = base.model_copy(deep=True)
                 del changed.parameters[param.location][param.name]
                 add(changed, f"required:{param.location}.{param.name}", True, "required-omission")
+    if base.enabled and rng is not None:
+        property_cases(op, base, rng, property_count, add)
     if op.auth_required:
         code = next((code for code in ("401", "403") if code in op.responses), None)
         variants: tuple[tuple[Literal["omit", "invalid"], str, str], ...] = (
@@ -320,15 +337,84 @@ def operation_cases(op: Operation, spec: Spec) -> list[Case]:
     return cases
 
 
-def generate(spec: Spec, requirements: Requirements) -> Plan:
+def property_cases(
+    op: Operation,
+    base: Case,
+    rng: random.Random,
+    count: int,
+    add: Callable[[Case, str, bool, str], None],
+) -> None:
+    """Random schema-valid requests expect success; one random violation each expects 4xx.
+
+    Path parameters keep the happy-path values: a random id would mostly exercise 404s.
+    """
+    params = [param for param in op.parameters if param.location != "path"]
+    for index in range(1, count + 1):
+        changed = base.model_copy(deep=True)
+        if op.request_schema is not None:
+            found, body = random_instance(op.request_schema, rng)
+            if not found:
+                continue
+            changed.body = body
+        for param in params:
+            if param.required or rng.random() < 0.5:
+                found, value = random_instance(param.schema_, rng)
+                if found and not isinstance(value, (dict, list)):
+                    changed.parameters.setdefault(param.location, {})[param.name] = value
+            else:
+                changed.parameters.get(param.location, {}).pop(param.name, None)
+        add(changed, "property:valid", False, "property")
+        changed.name = f"{op.id}: property valid #{index}"
+    targets: list[tuple[str, Schema, Any]] = []
+    if op.request_schema is not None and base.has_body:
+        targets.append(("body", op.request_schema, base.body))
+    targets += [(f"{p.location}.{p.name}", p.schema_, p) for p in params]
+    for index in range(1, count + 1):
+        if not targets:
+            break
+        label, schema, _ = rng.choice(targets)
+        found, value = random_instance(schema, rng)
+        path = "" if label == "body" else label
+        broken = [item for item in mutations(value, schema, path) if not valid(item[0], schema)]
+        if not found or not broken:
+            continue
+        bad, check = rng.choice(broken)
+        changed = base.model_copy(deep=True)
+        if label == "body":
+            changed.body = bad
+        else:
+            location, name = label.split(".", 1)
+            changed.parameters.setdefault(location, {})[name] = bad
+        add(changed, "property:invalid", True, "property")
+        changed.name = f"{op.id}: property invalid #{index} ({check.rstrip(':') or label})"
+
+
+def generate(
+    spec: Spec, requirements: Requirements, *, seed: int = 0, property_cases: int = 0
+) -> Plan:
     validate_requirements(requirements, spec)
+    if not 0 <= property_cases <= MAX_PROPERTY_CASES:
+        raise ValueError(f"property_cases must be between 0 and {MAX_PROPERTY_CASES}")
+
+    def rng(operation: Operation) -> random.Random | None:
+        # Per-operation streams: adding an operation never reshuffles another one's values.
+        return random.Random(f"{seed}:{operation.id}") if property_cases else None
+
     cases = deduplicate(
         [
             case
             for operation in spec.operations.values()
-            for case in operation_cases(operation, spec)
+            for case in operation_cases(
+                operation, spec, rng=rng(operation), property_count=property_cases
+            )
         ]
     )
     for case in cases:
         trace_case(case, requirements)
-    return Plan(spec=spec, requirements=requirements, cases=cases)
+    return Plan(
+        spec=spec,
+        requirements=requirements,
+        cases=cases,
+        seed=seed if property_cases else None,
+        property_cases=property_cases,
+    )
