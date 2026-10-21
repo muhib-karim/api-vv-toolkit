@@ -4,16 +4,13 @@ Handoff note for the next session. Short on purpose; details live in TASKS.md an
 
 ## Status
 
-Slice 1 is done (CI and CodeQL green on `43961d2`). In slice 2, done so far: HTML matrix
-redesign, Pages landing (`scripts/build_site.py`), composite `action.yml` plus dogfood workflow
-(green), live LLM re-run (`results/2026-10-21-llm-gate/`), 1.3.0 bump, CHANGELOG, release notes
-and the notes-driven `release.yml`.
+v1.3.0 is complete on `upgrade/v1.3.0`: all DoD items. CI, CodeQL (0 alerts) and the Action
+dogfood were green on `9250ba5`. HANDOFF.md records what was run and what is inferred.
 
 ## Next step
 
-README refresh (badges, screenshot `docs/assets/traceability-matrix.png`, Action usage,
-mermaid, roadmap, links), SKILLS_USED, TASKS and HANDOFF. Then push and wait for green, then
-print PU_DONE.
+Coordinator: review and merge, tag `v1.3.0`, and point `v1` at it. Nothing is left for an agent
+on this branch.
 
 ## Decisions
 
@@ -32,3 +29,4 @@ print PU_DONE.
 2026-10-21 19:20Z claude-code/claude-opus-5-5: slice 1 done locally (T1-T4 plus review fixes); next push and CI.
 2026-10-21 19:25Z claude-code/claude-opus-5-5: slice 1 pushed; CI and CodeQL green and 0 alerts; waiting for slice 2.
 2026-10-21 19:40Z claude-code/claude-opus-5-5: slice 2 features done (report, site, action, LLM re-run, release); README and handoff next.
+2026-10-21 19:50Z claude-code/claude-opus-5-5: slice 2 done; HANDOFF.md added; final push pending green.

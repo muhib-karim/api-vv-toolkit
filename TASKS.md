@@ -93,8 +93,9 @@ below is test-first: a failing test, then the code, then `ruff`, `mypy --strict 
       1.3.0 bump (pyproject, `__version__`, CITATION), SKILLS_USED, this file, HANDOFF.md,
       RELEASE_NOTES_v1.3.0.md, and `release.yml` (tag v*: tests, version check, wheel, sdist,
       SHA256SUMS, release body from `RELEASE_NOTES_<tag>.md`).
-- [ ] DoD 9. Push with push.sh and wait for CI, CodeQL and the dogfood to be green on the head;
-      the PU_DONE line follows that. Run ids are in HANDOFF.md.
+- [x] DoD 9. Pushed with push.sh. CI 39663317040, CodeQL 39663316952 (0 alerts) and Action
+      dogfood 39663316989 were green on `9250ba5`. The final head, which adds HANDOFF.md, is
+      checked the same way before PU_DONE.
 
 Process note: `tests/test_site.py` was written after `scripts/build_site.py` (a CI helper), not
 before it.
