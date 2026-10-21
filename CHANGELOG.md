@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here. The project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- OpenAPI 3.1 alongside 3.0: `type` arrays such as `["string", "null"]`, `examples` maps on
+  parameters and media types, and `webhooks`, which are listed on `Spec.webhooks` (and by
+  `parse`) but never tested.
+- Authentication from environment variable names only. `credentials_env` values must be variable
+  names; a scheme with no entry reads `API_VV_AUTH_<SCHEME>`. Each secured operation gets an
+  `invalid credentials` case (`auth: invalid`) that sends a fake, scheme-shaped credential and
+  expects the documented 401/403.
+- `pattern` support: happy paths synthesize a matching string, and a `pattern:<path>` negative
+  breaks only the pattern (`api_vv.synth`, a regex sampler with no new dependency).
+- Seeded property-based cases: `generate --property-cases N --seed S` adds N random schema-valid
+  requests (expect 2xx) and N single-violation requests (expect 4xx) per operation. The same
+  seed regenerates a byte-identical plan. Against the demo API they catch the seeded `maxLength`
+  defect on their own.
+- `api-vv diff OLD NEW`: classifies contract drift as breaking or non-breaking from an existing
+  client's point of view, as text, JSON or Markdown. Exits 1 on any breaking change.
+- CI: CodeQL (security-and-quality), a gitleaks job, Dependabot, a wheel build and smoke test,
+  drift-fixture checks, and runs on `upgrade/**` pushes.
+
+### Fixed
+
+- A 3.1 parameter whose `type` is an array crashed the parser (`unhashable type: 'list'`).
+- A 3.0 `nullable: true` on a schema without a single `type` (`allOf`, `$ref`) silently dropped
+  `null`.
+- HTTP authentication scheme names are matched case-insensitively (`Bearer`, `BASIC`).
+
 ## [1.2.0] - 2026-10-18
 
 ### Changed

@@ -5,11 +5,12 @@ Handoff note for the next session. Short on purpose; details live in TASKS.md an
 ## Status
 
 v1.3.0 upgrade on branch `upgrade/v1.3.0`. Slice 1 (OpenAPI 3.1 + auth, seeded negative and
-property generation, `api-vv diff`, CI gates) is in progress. See TASKS.md for checkboxes.
+property generation, `api-vv diff`, CI gates) is implemented, reviewed and green locally
+(256 tests, about 98% coverage, demo gate unchanged). Next it is pushed and checked on CI.
 
 ## Next step
 
-T1: OpenAPI 3.1 and auth, test-first.
+Push with push.sh and get CI and CodeQL green on the head. Then wait for slice 2 (DoD 4, 5, 7, 8, 9).
 
 ## Decisions
 
@@ -25,3 +26,4 @@ T1: OpenAPI 3.1 and auth, test-first.
 - Generator output changes case ids. Regenerate `docs/sample-*` from `make demo`.
 
 ## Session log
+2026-10-21 19:20Z claude-code/claude-opus-5-5: slice 1 done locally (T1-T4 plus review fixes); next push and CI.
