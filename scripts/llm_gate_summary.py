@@ -99,12 +99,12 @@ def report(root: Path) -> None:
     groups: dict[tuple[str, str], list[dict[str, object]]] = {}
     for row in rows:
         groups.setdefault((str(row["model"]), str(row["variant"])), []).append(row)
-    lines = [
+    header = (
         "| Model | Prompt | Runs | Model calls / run | Proposals | Accepted | Acceptance |"
         " LLM cases executed | Failed on seeded defects | Wrong expectations |"
-        " Seeded defects hit |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
-    ]
+        " Seeded defects hit |"
+    )
+    lines = [header, "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     table = []
     for (model, variant), runs in sorted(groups.items(), key=lambda kv: kv[0]):
 
