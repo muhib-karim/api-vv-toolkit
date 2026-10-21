@@ -59,8 +59,17 @@ below is test-first: a failing test, then the code, then `ruff`, `mypy --strict 
 - [x] `.github/dependabot.yml` for pip and github-actions, weekly, grouped.
 - [x] Regenerate `docs/sample-report.md` and `docs/sample-traceability.csv` (generator output
       changed); `make demo` still fails on exactly REQ-003 and REQ-008.
-- [ ] Push with `push.sh`, then wait for CI and CodeQL to be green on the branch head:
-      `SLICE1_DONE <sha>`.
+- [x] Pushed with `push.sh`. CI run 39660210674 (check 3.11 and 3.12, gitleaks, build, demo,
+      docker) and CodeQL run 39660210679 were green on `37eb9a7`, with 0 open code-scanning
+      alerts. The one earlier alert (`py/implicit-string-concatenation-in-list`, inherited from
+      `scripts/llm_gate_summary.py`) was fixed on this branch with byte-identical output.
+      The final head is recorded in `docs/PROJECT_BRAIN.md`.
+
+### Notes for slice 2
+
+- GitHub now warns that Node 20 actions and CodeQL Action v3 are deprecated (v3 retires
+  December 2026). Dependabot is configured to open the bumps; take them, or bump to
+  `codeql-action@v4` while doing the Action work.
 
 ## Slice 2 (not started): DoD 4, 5, 7, 8, 9
 
