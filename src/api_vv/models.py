@@ -41,6 +41,13 @@ class SecurityScheme(Model):
     location: Literal["header", "query", "cookie"] | None = None
     scheme: str | None = None
 
+    @property
+    def supported(self) -> bool:
+        """Whether execution knows where this scheme's credential goes."""
+        if self.type == "apiKey":
+            return bool(self.location and self.name)
+        return self.type in {"oauth2", "openIdConnect"} or self.scheme in {"basic", "bearer"}
+
 
 class Operation(Model):
     id: str

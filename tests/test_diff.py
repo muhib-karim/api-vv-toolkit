@@ -332,3 +332,77 @@ def test_cli_diff_invalid_input(tmp_path: Path, capsys: pytest.CaptureFixture[st
     bad.write_text("openapi: 2.0\n")
     assert main(["diff", V1, str(bad)]) == 2
     assert "OpenAPI 3.0.x or 3.1.x" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "old, new, direction, expected",
+    [
+        (
+            {"format": "date"},
+            {"format": "date-time"},
+            "response",
+            [("response-constraint-changed", True)],
+        ),
+        ({"const": "a"}, {"const": "b"}, "response", [("response-constraint-changed", True)]),
+        ({"pattern": "^a"}, {"pattern": "^b"}, "request", [("request-constraint-changed", True)]),
+        ({"multipleOf": 2}, {"multipleOf": 3}, "response", [("response-constraint-changed", True)]),
+        (
+            {"type": "object"},
+            {"type": "object", "required": ["a"]},
+            "request",
+            [("request-property-required", True)],
+        ),
+        (
+            {"type": "object", "required": ["a"]},
+            {"type": "object"},
+            "request",
+            [("request-property-optional", False)],
+        ),
+        (
+            {"type": "object", "required": ["a"]},
+            {"type": "object"},
+            "response",
+            [("response-schema-narrowed", True)],
+        ),
+        (
+            {"type": "object"},
+            {"type": "object", "required": ["a"]},
+            "response",
+            [("response-property-required", False)],
+        ),
+        (
+            {"allOf": [{"type": "object"}, {"required": []}]},
+            {"allOf": [{"type": "object"}, {"required": ["name"]}]},
+            "request",
+            [("request-property-required", True)],
+        ),
+    ],
+)
+def test_changed_constraints_and_non_local_required(
+    old: Any, new: Any, direction: Direction, expected: list[tuple[str, bool]]
+) -> None:
+    assert schema_changes(old, new, direction) == expected
+
+
+def test_security_scheme_definition_changes_are_breaking() -> None:
+    secured = op(security=[{"K": []}])
+    old = spec_of(
+        secured, schemes={"K": SecurityScheme(type="apiKey", name="X-API-Key", location="header")}
+    )
+    new = spec_of(
+        secured,
+        schemes={"K": SecurityScheme(type="apiKey", name="Authorization", location="header")},
+    )
+    assert [(c.rule, c.breaking) for c in diff_specs(old, new)] == [
+        ("security-scheme-changed", True)
+    ]
+
+
+def test_request_media_type_change_is_breaking() -> None:
+    old = spec_of(op(request_schema={"type": "object"}))
+    new = spec_of(
+        op(request_schema={"type": "object"}, request_media_type="application/merge-patch+json")
+    )
+    assert [(c.rule, c.breaking) for c in diff_specs(old, new)] == [
+        ("request-media-type-changed", True)
+    ]

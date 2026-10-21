@@ -39,6 +39,9 @@ CATEGORIES = {
 # Unbounded repeats (``*``, ``+``, ``{n,}``) add at most this many extra items.
 REPEAT_SLACK = 4
 MAX_DEPTH = 8
+# Same synthesis limits as ``generate.sample``: beyond these, an authored example is required.
+MAX_LENGTH = 10000
+MAX_ITEMS = 1000
 
 
 class Unsupported(Exception):
@@ -134,6 +137,14 @@ def is_valid(value: Any, schema: Schema) -> bool:
     return Draft202012Validator(schema, format_checker=FormatChecker()).is_valid(value)
 
 
+def _size(schema: dict[str, Any], key: str, default: int, limit: int) -> int:
+    """A size keyword as an int (JSON Schema allows ``2.0``), refusing sizes past ``limit``."""
+    value = schema.get(key, default)
+    if value != int(value) or value > limit:
+        raise Unsupported(f"{key} {value}")
+    return int(value)
+
+
 def _number(schema: dict[str, Any], integer: bool, rng: random.Random) -> int | float:
     low = schema.get("minimum", -math.inf)
     high = schema.get("maximum", math.inf)
@@ -170,8 +181,8 @@ def _string(schema: dict[str, Any], rng: random.Random) -> str:
         if found is None:
             raise Unsupported("pattern")
         return found
-    low = schema.get("minLength", 0)
-    high = min(schema.get("maxLength", low + 12), low + 12)
+    low = _size(schema, "minLength", 0, MAX_LENGTH)
+    high = min(_size(schema, "maxLength", low + 12, 2**63), low + 12)
     return "".join(rng.choice(ALPHABET) for _ in range(rng.randint(low, max(low, high))))
 
 
@@ -206,8 +217,8 @@ def _instance(schema: Schema, rng: random.Random, depth: int) -> Any:
                 result[name] = _instance(prop, rng, depth + 1)
         return result
     if kind == "array":
-        low = schema.get("minItems", 0)
-        high = min(schema.get("maxItems", low + 3), low + 3)
+        low = _size(schema, "minItems", 0, MAX_ITEMS)
+        high = min(_size(schema, "maxItems", low + 3, 2**63), low + 3)
         count = rng.randint(low, max(low, high))
         items: list[Any] = []
         for _ in range(count * 4 if schema.get("uniqueItems") else count):

@@ -152,15 +152,15 @@ def apply_credential(
     headers: dict[str, str],
     locations: dict[str, dict[str, str]],
 ) -> None:
+    if not scheme.supported:
+        raise ValueError("unsupported authentication scheme")
     if scheme.type == "apiKey" and scheme.location and scheme.name:
         key = scheme.name.lower() if scheme.location == "header" else scheme.name
         locations[scheme.location][key] = secret
     elif scheme.type == "http" and scheme.scheme == "basic":
         headers["authorization"] = "Basic " + base64.b64encode(secret.encode()).decode()
-    elif scheme.type in {"oauth2", "openIdConnect"} or scheme.scheme == "bearer":
-        headers["authorization"] = "Bearer " + secret
     else:
-        raise ValueError("unsupported authentication scheme")
+        headers["authorization"] = "Bearer " + secret
 
 
 def request_parts(
@@ -222,6 +222,18 @@ async def execute(
     unknown = sorted(config.credentials_env.keys() - plan.spec.security_schemes.keys())
     if unknown:
         raise ValueError(f"unknown security scheme in credentials_env: {', '.join(unknown)}")
+    used = sorted(
+        {name for op in plan.spec.operations.values() for group in op.security for name in group}
+    )
+    by_env: dict[str, list[str]] = {}
+    for name in used:
+        by_env.setdefault(credential_env(name, config), []).append(name)
+    for env, names in by_env.items():
+        if len(names) > 1:
+            # One variable for two schemes would silently send one scheme's secret as the other's.
+            raise ValueError(
+                f"security schemes {', '.join(names)} share {env}; set credentials_env"
+            )
     check_base_url(base_url, "base URL")
     semaphore = asyncio.Semaphore(config.concurrency)
     requirements = {item.id: item for item in plan.requirements.requirements}

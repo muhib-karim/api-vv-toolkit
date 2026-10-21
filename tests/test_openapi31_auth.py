@@ -228,3 +228,28 @@ def test_unsupported_scheme_for_invalid_auth() -> None:
     case, _ = one_case(spec, auth="invalid")
     with pytest.raises(ValueError, match="unsupported authentication"):
         request_parts(case, spec.operations["createPet"], spec, Config())
+
+
+def test_invalid_auth_case_needs_review_for_unsupported_scheme() -> None:
+    spec = secured({"type": "http", "scheme": "digest"})
+    cases = operation_cases(spec.operations["createPet"], spec)
+    omit = next(case for case in cases if "auth-required" in case.checks)
+    invalid = next(case for case in cases if "auth-invalid" in case.checks)
+    assert omit.enabled
+    assert not invalid.enabled
+    assert (
+        invalid.review_reason == "unsupported authentication scheme for an invalid-credential case"
+    )
+
+
+def test_colliding_default_env_names_are_rejected(spec: Spec, requirements: Requirements) -> None:
+    plan = generate(spec, requirements)
+    key = plan.spec.security_schemes["DemoKey"]
+    plan.spec.security_schemes = {"api-key": key, "api_key": key}
+    for op in plan.spec.operations.values():
+        if op.security:
+            op.security = [{"api-key": []}, {"api_key": []}]
+    with pytest.raises(
+        ValueError, match="security schemes api-key, api_key share API_VV_AUTH_API_KEY"
+    ):
+        asyncio.run(execute(plan, "http://api.test", Config(), httpx.MockTransport(lambda r: r)))

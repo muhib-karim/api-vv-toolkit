@@ -151,10 +151,12 @@ def compare_schema(
             constraint(key, tighter=after > before)
         elif key in UPPER_BOUNDS:
             constraint(key, tighter=after < before)
-        elif key == "multipleOf":
-            constraint(key, tighter=before % after != 0)
+        elif key == "multipleOf" and (after % before == 0 or before % after == 0):
+            constraint(key, tighter=after % before == 0)
         else:
-            constraint(key, tighter=True)
+            # A different pattern, format, const or unrelated multipleOf: neither set of values
+            # contains the other, so old requests may fail and responses may be unfamiliar.
+            emit(f"{direction}-constraint-changed", True, f"{key} changed")
 
     before_ap, after_ap = (
         old.get("additionalProperties", True),
@@ -184,18 +186,22 @@ def compare_schema(
         else:
             emit("response-property-added", False, "property added", at)
     for name in sorted(old_props.keys() & new_props.keys()):
+        compare_schema(
+            old_props[name], new_props[name], f"{where}.{name}", direction, operation, out
+        )
+    # `required` may name properties declared elsewhere (an allOf sibling, or none at all).
+    for name in sorted(new_required - old_required - (new_props.keys() - old_props.keys())):
         at = f"{where}.{name}"
-        compare_schema(old_props[name], new_props[name], at, direction, operation, out)
-        if name in new_required - old_required:
-            if request:
-                emit("request-property-required", True, "property became required", at)
-            else:
-                emit("response-property-required", False, "property became required", at)
-        elif name in old_required - new_required:
-            if request:
-                emit("request-property-optional", False, "property became optional", at)
-            else:
-                emit("response-schema-narrowed", True, "property no longer guaranteed", at)
+        if request:
+            emit("request-property-required", True, "property became required", at)
+        else:
+            emit("response-property-required", False, "property became required", at)
+    for name in sorted(old_required - new_required - (old_props.keys() - new_props.keys())):
+        at = f"{where}.{name}"
+        if request:
+            emit("request-property-optional", False, "property became optional", at)
+        else:
+            emit("response-schema-narrowed", True, "property no longer guaranteed", at)
 
     if "items" in old and "items" in new:
         compare_schema(old["items"], new["items"], f"{where}[]", direction, operation, out)
@@ -232,7 +238,9 @@ def _alternatives(op: Operation) -> set[frozenset[str]]:
     return {frozenset(group) for group in op.security}
 
 
-def compare_operation(old: Operation, new: Operation, out: list[Change]) -> None:
+def compare_operation(
+    old: Operation, new: Operation, out: list[Change], old_spec: Spec, new_spec: Spec
+) -> None:
     label = f"{new.method} {new.path}"
 
     def emit(rule: str, breaking: bool, detail: str, where: str = "") -> None:
@@ -272,6 +280,9 @@ def compare_operation(old: Operation, new: Operation, out: list[Change]) -> None
             emit("request-body-required", True, "request body became required", "request body")
         elif old.request_required and not new.request_required:
             emit("request-body-optional", False, "request body became optional", "request body")
+        if old.request_media_type != new.request_media_type:
+            shown = f"{old.request_media_type} -> {new.request_media_type}"
+            emit("request-media-type-changed", True, shown, "request body")
         compare_schema(
             old.request_schema, new.request_schema, "request body", "request", label, out
         )
@@ -320,6 +331,12 @@ def compare_operation(old: Operation, new: Operation, out: list[Change]) -> None
             emit("security-changed", True, "an accepted security requirement was removed")
         elif after_alts - before_alts:
             emit("security-alternative-added", False, "a security alternative was added")
+    # Same scheme name, different definition (header renamed, bearer -> basic): clients break.
+    for name in sorted({name for group in old.security for name in group}):
+        before_scheme = old_spec.security_schemes.get(name)
+        after_scheme = new_spec.security_schemes.get(name)
+        if before_scheme and after_scheme and before_scheme != after_scheme:
+            emit("security-scheme-changed", True, f"security scheme {name} definition changed")
 
 
 def diff_specs(old: Spec, new: Spec) -> list[Change]:
@@ -353,7 +370,7 @@ def diff_specs(old: Spec, new: Spec) -> list[Change]:
             )
         )
     for key in before.keys() & after.keys():
-        compare_operation(before[key], after[key], changes)
+        compare_operation(before[key], after[key], changes, old, new)
     return sorted(
         changes, key=lambda item: (not item.breaking, item.operation, item.where, item.rule)
     )

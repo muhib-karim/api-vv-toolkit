@@ -283,3 +283,19 @@ def test_cli_generate_with_seed(tmp_path: Any, capsys: pytest.CaptureFixture[str
     assert main(args) == 0
     assert out.read_text() == first
     assert "Generated" in capsys.readouterr().out
+
+
+def test_random_instance_accepts_integral_float_bounds() -> None:
+    schema = {"type": "string", "minLength": 2.0, "maxLength": 4.0}
+    array = {"type": "array", "items": {"type": "boolean"}, "minItems": 1.0, "maxItems": 2.0}
+    for target in (schema, array):
+        found, value = random_instance(target, random.Random(5))
+        assert found and valid(value, target)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [{"type": "string", "minLength": 10**9}, {"type": "array", "minItems": 10**6}],
+)
+def test_random_instance_refuses_huge_sizes(schema: dict[str, Any]) -> None:
+    assert random_instance(schema, random.Random(5)) == (False, None)

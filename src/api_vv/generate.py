@@ -304,7 +304,7 @@ def operation_cases(
                 del changed.parameters[param.location][param.name]
                 add(changed, f"required:{param.location}.{param.name}", True, "required-omission")
     if base.enabled and rng is not None:
-        property_cases(op, base, rng, property_count, add)
+        add_property_cases(op, base, rng, property_count, add)
     if op.auth_required:
         code = next((code for code in ("401", "403") if code in op.responses), None)
         variants: tuple[tuple[Literal["omit", "invalid"], str, str], ...] = (
@@ -319,9 +319,17 @@ def operation_cases(
             changed.checks = [check]
             changed.generators = [check]
             changed.expected_status = code or base.expected_status
+            first_group = next((group for group in op.security if group), {})
             if code is None:
                 changed.enabled = False
                 changed.review_reason = "no documented authentication-error response"
+            elif auth == "invalid" and not all(
+                spec.security_schemes[name].supported for name in first_group
+            ):
+                changed.enabled = False
+                changed.review_reason = (
+                    "unsupported authentication scheme for an invalid-credential case"
+                )
             cases.append(changed)
     covered = {case.expected_status for case in cases if case.enabled}
     for code in op.responses.keys() - covered:
@@ -337,7 +345,7 @@ def operation_cases(
     return cases
 
 
-def property_cases(
+def add_property_cases(
     op: Operation,
     base: Case,
     rng: random.Random,
