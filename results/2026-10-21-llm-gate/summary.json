@@ -1,0 +1,256 @@
+{
+ "groups": [
+  {
+   "model": "claude-opus-5-5",
+   "variant": "v1.3.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 110,
+   "accepted": 105,
+   "acceptance_rate": 0.955,
+   "llm_cases_executed": 82,
+   "failed_on_seeded_defects": 19,
+   "failed_wrong_expectation": 6,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "claude-sonnet-5",
+   "variant": "v1.3.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 104,
+   "accepted": 79,
+   "acceptance_rate": 0.76,
+   "llm_cases_executed": 64,
+   "failed_on_seeded_defects": 9,
+   "failed_wrong_expectation": 7,
+   "seeded_defects_hit": [
+    "defect-1",
+    "defect-2"
+   ]
+  },
+  {
+   "model": "gpt-6-sol",
+   "variant": "v1.3.0",
+   "runs": 3,
+   "calls_per_run": 8.0,
+   "proposals": 63,
+   "accepted": 60,
+   "acceptance_rate": 0.952,
+   "llm_cases_executed": 39,
+   "failed_on_seeded_defects": 7,
+   "failed_wrong_expectation": 0,
+   "seeded_defects_hit": [
+    "defect-1"
+   ]
+  }
+ ],
+ "runs": [
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 36,
+   "accepted": 34,
+   "llm_cases_in_plan": 26,
+   "executed_passed": 18,
+   "executed_failed": 8,
+   "failures_on_seeded_defects": 6,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 39
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 36,
+   "accepted": 34,
+   "llm_cases_in_plan": 27,
+   "executed_passed": 19,
+   "executed_failed": 8,
+   "failures_on_seeded_defects": 6,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 41
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 38,
+   "accepted": 37,
+   "llm_cases_in_plan": 29,
+   "executed_passed": 20,
+   "executed_failed": 9,
+   "failures_on_seeded_defects": 7,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "claude-opus-5-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 41
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 38,
+   "accepted": 31,
+   "llm_cases_in_plan": 24,
+   "executed_passed": 21,
+   "executed_failed": 3,
+   "failures_on_seeded_defects": 1,
+   "seeded_defects_found": [
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "unknown parameter: header.Authorization": 2,
+    "unknown parameter: header.DemoKey": 2,
+    "malformed": 1,
+    "conflicting expectations": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 41
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 32,
+   "accepted": 22,
+   "llm_cases_in_plan": 19,
+   "executed_passed": 12,
+   "executed_failed": 7,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 3,
+   "rejections": {
+    "malformed": 2,
+    "unknown parameter: header.Authorization": 2,
+    "operation has no request body": 2,
+    "conflicting expectations": 1,
+    "unknown parameter: header.DemoKey": 1,
+    "unknown parameter: header.demokey": 1,
+    "unknown parameter: header.X-Custom-Debug": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 39
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 34,
+   "accepted": 26,
+   "llm_cases_in_plan": 21,
+   "executed_passed": 15,
+   "executed_failed": 6,
+   "failures_on_seeded_defects": 4,
+   "seeded_defects_found": [
+    "defect-1",
+    "defect-2"
+   ],
+   "failures_wrong_expectation": 2,
+   "rejections": {
+    "unknown parameter: header.DemoKey": 2,
+    "malformed": 1,
+    "conflicting expectations": 1,
+    "unknown parameter: header.Authorization": 1,
+    "unknown parameter: header.demokey": 1,
+    "unknown parameter: query.debug": 1,
+    "operation has no request body": 1
+   },
+   "model": "claude-sonnet-5",
+   "variant": "v1.3.0",
+   "generate_seconds": 34
+  },
+  {
+   "run": "r1",
+   "requirements_queried": 8,
+   "proposals": 22,
+   "accepted": 21,
+   "llm_cases_in_plan": 13,
+   "executed_passed": 11,
+   "executed_failed": 2,
+   "failures_on_seeded_defects": 2,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.3.0",
+   "generate_seconds": 30
+  },
+  {
+   "run": "r2",
+   "requirements_queried": 8,
+   "proposals": 20,
+   "accepted": 19,
+   "llm_cases_in_plan": 12,
+   "executed_passed": 10,
+   "executed_failed": 2,
+   "failures_on_seeded_defects": 2,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.3.0",
+   "generate_seconds": 28
+  },
+  {
+   "run": "r3",
+   "requirements_queried": 8,
+   "proposals": 21,
+   "accepted": 20,
+   "llm_cases_in_plan": 14,
+   "executed_passed": 11,
+   "executed_failed": 3,
+   "failures_on_seeded_defects": 3,
+   "seeded_defects_found": [
+    "defect-1"
+   ],
+   "failures_wrong_expectation": 0,
+   "rejections": {
+    "conflicting expectations": 1
+   },
+   "model": "gpt-6-sol",
+   "variant": "v1.3.0",
+   "generate_seconds": 30
+  }
+ ]
+}
