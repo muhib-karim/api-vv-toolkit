@@ -71,10 +71,33 @@ below is test-first: a failing test, then the code, then `ruff`, `mypy --strict 
   December 2026). Dependabot is configured to open the bumps; take them, or bump to
   `codeql-action@v4` while doing the Action work.
 
-## Slice 2 (not started): DoD 4, 5, 7, 8, 9
+## Slice 2: reports, Pages, Action, LLM re-run, docs (DoD 4, 5, 7, 8, 9)
 
-HTML/JUnit report polish and the Pages live run, composite `action.yml` plus dogfood workflow, LLM
-gate re-run, README/CHANGELOG/version bump, HANDOFF.md.
+- [x] DoD 4. The HTML matrix shows requirement → tests → result with endpoint, expected and
+      actual status, latency and "why it failed". It is accessible (landmarks, skip link,
+      captioned table, scoped headers, icon plus word status, AA contrast in both themes) and
+      mobile-friendly (cards below 720px, script-free "not verified" filter). JUnit XML is
+      unchanged and tested. `scripts/build_site.py` builds the Pages landing from a live demo
+      run in CI (pages.yml from main; a preview artifact in the CI demo job). Nothing is
+      committed by hand.
+- [x] DoD 5. Composite `action.yml` (`uses: muhib-karim/api-vv-toolkit@v1`) and the dogfood
+      workflow `.github/workflows/action.yml`: the gate must name exactly REQ-003 and REQ-008,
+      and drift must be 0 for the compatible fixture and > 0 for the breaking one.
+- [x] DoD 7. The endpoint answered, so the study was re-run live on 2026-10-21 for
+      claude-opus-5-5, claude-sonnet-5 and gpt-6-sol, 3 runs each
+      (`results/2026-10-21-llm-gate/`). The 2026-10-17 study is kept as it was. No endpoint or
+      key appears in any file; this was checked against the environment values and with
+      gitleaks.
+- [x] DoD 8. README refresh (badges including CodeQL and coverage, headless screenshot,
+      quickstart, Action usage, mermaid, roadmap, links), CHANGELOG [1.3.0] - 2026-10-21, the
+      1.3.0 bump (pyproject, `__version__`, CITATION), SKILLS_USED, this file, HANDOFF.md,
+      RELEASE_NOTES_v1.3.0.md, and `release.yml` (tag v*: tests, version check, wheel, sdist,
+      SHA256SUMS, release body from `RELEASE_NOTES_<tag>.md`).
+- [ ] DoD 9. Push with push.sh and wait for CI, CodeQL and the dogfood to be green on the head;
+      the PU_DONE line follows that. Run ids are in HANDOFF.md.
+
+Process note: `tests/test_site.py` was written after `scripts/build_site.py` (a CI helper), not
+before it.
 
 ## Review (slice 1)
 
