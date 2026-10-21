@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import math
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -289,18 +289,23 @@ def operation_cases(op: Operation, spec: Spec) -> list[Case]:
                 del changed.parameters[param.location][param.name]
                 add(changed, f"required:{param.location}.{param.name}", True, "required-omission")
     if op.auth_required:
-        changed = base.model_copy(deep=True)
-        changed.auth = "omit"
-        changed.negative = True
-        changed.name = f"{op.id}: missing authentication"
-        changed.checks = ["auth-required"]
-        changed.generators = ["auth-required"]
         code = next((code for code in ("401", "403") if code in op.responses), None)
-        changed.expected_status = code or base.expected_status
-        if code is None:
-            changed.enabled = False
-            changed.review_reason = "no documented authentication-error response"
-        cases.append(changed)
+        variants: tuple[tuple[Literal["omit", "invalid"], str, str], ...] = (
+            ("omit", "missing authentication", "auth-required"),
+            ("invalid", "invalid credentials", "auth-invalid"),
+        )
+        for auth, label, check in variants:
+            changed = base.model_copy(deep=True)
+            changed.auth = auth
+            changed.negative = True
+            changed.name = f"{op.id}: {label}"
+            changed.checks = [check]
+            changed.generators = [check]
+            changed.expected_status = code or base.expected_status
+            if code is None:
+                changed.enabled = False
+                changed.review_reason = "no documented authentication-error response"
+            cases.append(changed)
     covered = {case.expected_status for case in cases if case.enabled}
     for code in op.responses.keys() - covered:
         changed = base.model_copy(deep=True)

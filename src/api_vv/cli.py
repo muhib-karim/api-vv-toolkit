@@ -82,7 +82,9 @@ def dispatch(args: argparse.Namespace) -> int:
         spec = parse_spec(args.spec)
         if args.command == "parse":
             write_data(args.out, spec)
-            print(f"Parsed {len(spec.operations)} operations")
+            ignored = len(spec.webhooks)
+            note = f" ({ignored} webhook{'' if ignored == 1 else 's'} ignored)" if ignored else ""
+            print(f"Parsed {len(spec.operations)} operations{note}")
             return 0
         requirements = Requirements.model_validate(read_data(args.requirements))
         validate_requirements(requirements, spec)

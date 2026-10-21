@@ -65,11 +65,15 @@ def normalize_schema(schema: Schema, *, legacy: bool) -> Schema:
     for key in ("$id", "$schema", "$dynamicRef", "$recursiveRef"):
         if key in result:
             raise ValueError(f"unsupported schema keyword: {key}")
+    wrap_null = False
     if legacy:
         if result.pop("nullable", False):
             original_type = result.get("type")
             if isinstance(original_type, str):
                 result["type"] = [original_type, "null"]
+            elif "enum" not in result:
+                # allOf/oneOf/$ref plus nullable: no single type to widen, so union with null.
+                wrap_null = True
             if "enum" in result and None not in result["enum"]:
                 result["enum"].append(None)
         for bound in ("minimum", "maximum"):
@@ -90,6 +94,8 @@ def normalize_schema(schema: Schema, *, legacy: bool) -> Schema:
     for key in ("allOf", "anyOf", "oneOf", "prefixItems"):
         if key in result:
             result[key] = [normalize_schema(item, legacy=legacy) for item in result[key]]
+    if wrap_null:
+        result = {"anyOf": [result, {"type": "null"}]}
     Draft202012Validator.check_schema(result)
     return result
 
@@ -120,6 +126,26 @@ def schema_for(schema: Schema, direction: str) -> Schema:
     return result
 
 
+def types_of(schema: Schema) -> set[str]:
+    """Declared JSON types; 3.1 allows a list such as ``["string", "null"]``."""
+    declared = schema.get("type") if isinstance(schema, dict) else None
+    if isinstance(declared, str):
+        return {declared}
+    return set(declared) if isinstance(declared, list) else set()
+
+
+def first_example(container: dict[str, Any]) -> tuple[bool, Any]:
+    """An ``example``, else the first ``examples`` entry with a ``value`` (3.0 and 3.1 maps)."""
+    if "example" in container:
+        return True, container["example"]
+    examples = container.get("examples")
+    if isinstance(examples, dict):
+        for entry in examples.values():
+            if isinstance(entry, dict) and "value" in entry:
+                return True, entry["value"]
+    return False, None
+
+
 def is_json(media_type: str) -> bool:
     media = media_type.split(";", 1)[0].strip().lower()
     return media == "application/json" or media.endswith("+json")
@@ -145,7 +171,8 @@ def parse_document(raw: Any) -> Spec:
             type=item["type"],
             name=item.get("name"),
             location=item.get("in"),
-            scheme=item.get("scheme"),
+            # RFC 9110: authentication scheme names are case-insensitive.
+            scheme=item["scheme"].lower() if isinstance(item.get("scheme"), str) else None,
         )
         for name, item in doc.get("components", {}).get("securitySchemes", {}).items()
     }
@@ -167,17 +194,14 @@ def parse_document(raw: Any) -> Spec:
                 if param.get("style", default_style) != default_style:
                     raise ValueError("unsupported parameter style; use form or simple")
                 param_schema = schema(param.get("schema", {}), "request")
-                if isinstance(param_schema, dict) and param_schema.get("type") in {
-                    "object",
-                    "array",
-                }:
+                if types_of(param_schema) & {"object", "array"}:
                     raise ValueError("only scalar parameters are supported in v1")
                 parsed = Parameter(
                     name=param["name"],
                     location=location,
                     required=location == "path" or param.get("required", False),
                     schema=param_schema,
-                    example=param.get("example"),
+                    example=first_example(param)[1],
                 )
                 params[(location, parsed.name)] = parsed
             placeholders = set(re.findall(r"\{([^}]+)\}", path))
@@ -192,8 +216,9 @@ def parse_document(raw: Any) -> Spec:
             body_schema = None
             if content:
                 body_schema = schema(content[media].get("schema", {}), "request")
-                if isinstance(body_schema, dict) and "example" in content[media]:
-                    body_schema["example"] = content[media]["example"]
+                found, example = first_example(content[media])
+                if isinstance(body_schema, dict) and found:
+                    body_schema["example"] = example
             responses: dict[str, Response] = {}
             for code, response in value.get("responses", {}).items():
                 code = str(code)
@@ -228,13 +253,18 @@ def parse_document(raw: Any) -> Spec:
                 responses=responses,
                 security=security,
             )
+    # 3.1 webhooks are requests the API sends, not ones a client can make; list, never test.
+    webhooks = sorted(doc.get("webhooks", {}))
     if not operations:
-        raise ValueError("spec has no operations")
+        raise ValueError(
+            "spec has no operations" + (" (webhooks are not tested)" if webhooks else "")
+        )
     return Spec(
         openapi=doc["openapi"],
         title=doc.get("info", {}).get("title", "API"),
         operations=operations,
         security_schemes=schemes,
+        webhooks=webhooks,
     )
 
 

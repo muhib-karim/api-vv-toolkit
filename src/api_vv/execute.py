@@ -16,8 +16,21 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from api_vv.generate import case_problems, trace_case
 from api_vv.io import check_base_url, plan_digest, unsafe_path
-from api_vv.models import Case, Config, Operation, Plan, Result, Run, Schema, Spec
+from api_vv.models import (
+    Case,
+    Config,
+    Operation,
+    Plan,
+    Result,
+    Run,
+    Schema,
+    SecurityScheme,
+    Spec,
+)
 from api_vv.spec import is_json, validate_requirements
+
+# Sent by ``auth: invalid`` cases: well-formed for the scheme, never a real credential.
+INVALID_CREDENTIAL = "api-vv-invalid-credential"
 
 
 def validate_plan(plan: Plan) -> None:
@@ -126,6 +139,29 @@ def validate_response(response: httpx.Response, case: Case, op: Operation) -> li
     return errors
 
 
+def credential_env(scheme_name: str, config: Config) -> str:
+    """The environment variable that holds a scheme's credential; never the value itself."""
+    default = "API_VV_AUTH_" + re.sub(r"[^A-Z0-9]", "_", scheme_name.upper())
+    return config.credentials_env.get(scheme_name, default)
+
+
+def apply_credential(
+    scheme: SecurityScheme,
+    secret: str,
+    headers: dict[str, str],
+    locations: dict[str, dict[str, str]],
+) -> None:
+    if scheme.type == "apiKey" and scheme.location and scheme.name:
+        key = scheme.name.lower() if scheme.location == "header" else scheme.name
+        locations[scheme.location][key] = secret
+    elif scheme.type == "http" and scheme.scheme == "basic":
+        headers["authorization"] = "Basic " + base64.b64encode(secret.encode()).decode()
+    elif scheme.type in {"oauth2", "openIdConnect"} or scheme.scheme == "bearer":
+        headers["authorization"] = "Bearer " + secret
+    else:
+        raise ValueError("unsupported authentication scheme")
+
+
 def request_parts(
     case: Case, op: Operation, spec: Spec, config: Config
 ) -> tuple[str, dict[str, str], dict[str, str], dict[str, str]]:
@@ -140,7 +176,7 @@ def request_parts(
     query = {name: scalar(value) for name, value in case.parameters.get("query", {}).items()}
     cookies = {name: scalar(value) for name, value in case.parameters.get("cookie", {}).items()}
     locations = {"header": headers, "query": query, "cookie": cookies}
-    if case.auth == "omit":
+    if case.auth in {"omit", "invalid"}:
         for group in op.security:
             for name in group:
                 scheme = spec.security_schemes[name]
@@ -149,6 +185,12 @@ def request_parts(
                     locations[scheme.location].pop(key, None)
                 else:
                     headers.pop("authorization", None)
+        if case.auth == "invalid":
+            for name in next((group for group in op.security if group), {}):
+                scheme = spec.security_schemes[name]
+                basic = scheme.type == "http" and scheme.scheme == "basic"
+                fake = f"api-vv:{INVALID_CREDENTIAL}" if basic else INVALID_CREDENTIAL
+                apply_credential(scheme, fake, headers, locations)
         return path, headers, query, cookies
     if not op.security:
         return path, headers, query, cookies
@@ -156,24 +198,15 @@ def request_parts(
         (
             group
             for group in op.security
-            if all(os.environ.get(config.credentials_env.get(name, ""), "") for name in group)
+            if all(os.environ.get(credential_env(name, config), "") for name in group)
         ),
         None,
     )
     if selected is None:
         raise ValueError("missing configured credentials for operation security requirements")
     for name in selected:
-        scheme = spec.security_schemes[name]
-        secret = os.environ[config.credentials_env[name]]
-        if scheme.type == "apiKey" and scheme.location and scheme.name:
-            key = scheme.name.lower() if scheme.location == "header" else scheme.name
-            locations[scheme.location][key] = secret
-        elif scheme.type == "http" and scheme.scheme == "basic":
-            headers["authorization"] = "Basic " + base64.b64encode(secret.encode()).decode()
-        elif scheme.type in {"oauth2", "openIdConnect"} or scheme.scheme == "bearer":
-            headers["authorization"] = "Bearer " + secret
-        else:
-            raise ValueError("unsupported authentication scheme")
+        secret = os.environ[credential_env(name, config)]
+        apply_credential(spec.security_schemes[name], secret, headers, locations)
     return path, headers, query, cookies
 
 
@@ -185,6 +218,9 @@ async def execute(
 ) -> Run:
     validate_plan(plan)
     config = config or Config()
+    unknown = sorted(config.credentials_env.keys() - plan.spec.security_schemes.keys())
+    if unknown:
+        raise ValueError(f"unknown security scheme in credentials_env: {', '.join(unknown)}")
     check_base_url(base_url, "base URL")
     semaphore = asyncio.Semaphore(config.concurrency)
     requirements = {item.id: item for item in plan.requirements.requirements}

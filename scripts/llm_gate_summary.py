@@ -14,7 +14,9 @@ from jsonschema import Draft202012Validator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from examples.demo_api.app import CREATE_SCHEMA, SPEC  # noqa: E402
 
-DOCUMENTED = Draft202012Validator(SPEC.operations["createWidget"].request_schema)
+_CREATE_REQUEST = SPEC.operations["createWidget"].request_schema
+assert _CREATE_REQUEST is not None, "demo createWidget documents a request body"
+DOCUMENTED = Draft202012Validator(_CREATE_REQUEST)
 IMPLEMENTED = Draft202012Validator(CREATE_SCHEMA)
 
 
