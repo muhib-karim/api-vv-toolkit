@@ -1,4 +1,4 @@
-"""Small argparse interface; exit 1 means a failed gate, exit 2 invalid input."""
+"""Small argparse interface; exit 1 means a failed gate or breaking drift, 2 invalid input."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from jsonschema.exceptions import SchemaError
 from pydantic import ValidationError
 
 from api_vv import __version__
+from api_vv.diff import diff_specs, render, summary
 from api_vv.execute import execute
 from api_vv.generate import generate
 from api_vv.io import read_data, write_data
@@ -55,6 +56,11 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument(
                 "--seed", type=int, default=0, help="seed for --property-cases (default: 0)"
             )
+    drift = commands.add_parser("diff", help="classify contract drift between two specs")
+    drift.add_argument("old", help="the published contract")
+    drift.add_argument("new", help="the proposed contract")
+    drift.add_argument("--format", choices=["text", "json", "md"], default="text")
+    drift.add_argument("--out", help="write the report here instead of stdout")
     for name in ("run", "report", "trace"):
         sub = commands.add_parser(name)
         sub.add_argument("--plan", required=True)
@@ -88,6 +94,17 @@ def announce_gate(data: Matrix, config: Config) -> int:
 
 
 def dispatch(args: argparse.Namespace) -> int:
+    if args.command == "diff":
+        changes = diff_specs(parse_spec(args.old), parse_spec(args.new))
+        content = render(changes, args.format)
+        if args.out:
+            target = Path(args.out)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+            print(f"Contract drift: {summary(changes)} (wrote {args.out})")
+        else:
+            print(content, end="")
+        return 1 if any(change.breaking for change in changes) else 0
     if args.command in {"parse", "validate-requirements", "generate"}:
         spec = parse_spec(args.spec)
         if args.command == "parse":
