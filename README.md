@@ -205,9 +205,9 @@ to `runs/demo/`. Output from a run:
 $ make demo
 .venv/bin/python scripts/demo.py
 Validated 12 requirements
-Generated 31 cases (31 enabled)
+Generated 32 cases (32 enabled)
 LLM proposals: 1 accepted, 1 rejected
-Executed: 29 passed, 2 failed, 0 skipped
+Executed: 30 passed, 2 failed, 0 skipped
 Gate: FAIL (REQ-003, REQ-008)
 Wrote Markdown, HTML, CSV and JUnit reports to runs/demo
 Gate: FAIL (REQ-003, REQ-008)
@@ -251,7 +251,7 @@ The failing REQ-003 case, as it appears in the plan:
   requirement_ids: [REQ-003]
 ```
 
-The matrix also lists 20 untraced tests: boundary and type checks that ran but that no
+The matrix also lists 21 untraced tests: boundary, type and auth checks that ran but that no
 requirement claims. They are shown so a reviewer can decide whether a requirement is missing
 or the tests are unnecessary.
 
