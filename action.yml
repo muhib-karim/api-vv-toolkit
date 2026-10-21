@@ -1,0 +1,171 @@
+name: api-vv-toolkit
+description: >-
+  Generate API tests from an OpenAPI 3.0/3.1 contract and written requirements, run them
+  against a live service, gate on requirement verdicts and flag breaking contract drift.
+author: Muhib Karim
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  spec:
+    description: OpenAPI 3.0 or 3.1 document (YAML or JSON) for the service under test.
+    required: true
+  requirements:
+    description: Requirements YAML. Required when base-url is set.
+    required: false
+    default: ""
+  base-url:
+    description: >-
+      Origin of the running service, e.g. http://localhost:8000. Leave empty to only check
+      contract drift against baseline-spec.
+    required: false
+    default: ""
+  config:
+    description: >-
+      Optional config YAML (concurrency, timeouts, gate rules, credentials_env). Credentials
+      are read from environment variables only; set API_VV_AUTH_<SCHEME> in the step's env.
+    required: false
+    default: ""
+  property-cases:
+    description: Random valid and invalid requests to add per operation (0 disables).
+    required: false
+    default: "0"
+  seed:
+    description: Seed for property cases; the same seed regenerates the same plan.
+    required: false
+    default: "0"
+  llm:
+    description: >-
+      "true" adds model-proposed cases through the spec validation gate, using the provider in
+      config (the offline mock unless configured otherwise).
+    required: false
+    default: "false"
+  baseline-spec:
+    description: Previous contract to diff against spec. Empty skips the drift check.
+    required: false
+    default: ""
+  fail-on-gate:
+    description: Fail the step when the requirement gate fails.
+    required: false
+    default: "true"
+  fail-on-breaking:
+    description: Fail the step when the drift check finds a breaking change.
+    required: false
+    default: "true"
+  out-dir:
+    description: Directory for plan, results and reports (HTML, Markdown, CSV, JUnit XML).
+    required: false
+    default: api-vv-report
+  python-version:
+    description: Python used to run the toolkit (3.11 or newer).
+    required: false
+    default: "3.12"
+
+outputs:
+  gate:
+    description: "pass, fail, or skipped (drift-only mode)."
+    value: ${{ steps.gate.outputs.gate }}
+  failed-requirements:
+    description: Comma-separated requirement ids that failed the gate.
+    value: ${{ steps.gate.outputs.failed }}
+  breaking-changes:
+    description: Number of breaking contract changes (0 when no baseline-spec is given).
+    value: ${{ steps.drift.outputs.breaking }}
+  report-dir:
+    description: Directory holding report.html, report.md, traceability.csv and junit.xml.
+    value: ${{ inputs.out-dir }}
+  junit:
+    description: Path to the JUnit XML report (empty in drift-only mode).
+    value: ${{ steps.gate.outputs.junit }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install api-vv-toolkit from this action's ref
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: python -m pip install --disable-pip-version-check --quiet "$ACTION_PATH"
+
+    - name: Contract drift
+      id: drift
+      shell: bash
+      env:
+        SPEC: ${{ inputs.spec }}
+        BASELINE: ${{ inputs.baseline-spec }}
+        OUT_DIR: ${{ inputs.out-dir }}
+      run: |
+        if [ -z "$BASELINE" ]; then echo "breaking=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+        mkdir -p "$OUT_DIR"
+        set +e
+        api-vv diff "$BASELINE" "$SPEC" --format json --out "$OUT_DIR/drift.json"
+        code=$?
+        set -e
+        if [ "$code" -gt 1 ]; then exit "$code"; fi
+        api-vv diff "$BASELINE" "$SPEC" --format md --out "$OUT_DIR/drift.md" || true
+        breaking=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["breaking"])' "$OUT_DIR/drift.json")
+        echo "breaking=$breaking" >> "$GITHUB_OUTPUT"
+        { echo "## Contract drift"; echo; cat "$OUT_DIR/drift.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Generate, run and report
+      id: gate
+      shell: bash
+      env:
+        SPEC: ${{ inputs.spec }}
+        REQUIREMENTS: ${{ inputs.requirements }}
+        BASE_URL: ${{ inputs.base-url }}
+        CONFIG: ${{ inputs.config }}
+        PROPERTY_CASES: ${{ inputs.property-cases }}
+        SEED: ${{ inputs.seed }}
+        LLM: ${{ inputs.llm }}
+        OUT_DIR: ${{ inputs.out-dir }}
+      run: |
+        if [ -z "$BASE_URL" ]; then
+          { echo "gate=skipped"; echo "failed="; echo "junit="; } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ -z "$REQUIREMENTS" ]; then echo "::error::requirements is required with base-url"; exit 2; fi
+        config_args=()
+        if [ -n "$CONFIG" ]; then config_args=(--config "$CONFIG"); fi
+        llm_args=()
+        if [ "$LLM" = "true" ]; then llm_args=(--llm); fi
+        mkdir -p "$OUT_DIR"
+        api-vv validate-requirements --spec "$SPEC" --requirements "$REQUIREMENTS"
+        api-vv generate --spec "$SPEC" --requirements "$REQUIREMENTS" "${config_args[@]}" "${llm_args[@]}" \
+          --property-cases "$PROPERTY_CASES" --seed "$SEED" --out "$OUT_DIR/plan.yaml"
+        set +e
+        api-vv run --plan "$OUT_DIR/plan.yaml" --base-url "$BASE_URL" "${config_args[@]}" \
+          --out "$OUT_DIR/results.yaml"
+        code=$?
+        set -e
+        if [ "$code" -gt 1 ]; then exit "$code"; fi
+        set +e
+        api-vv report --plan "$OUT_DIR/plan.yaml" --results "$OUT_DIR/results.yaml" \
+          "${config_args[@]}" --out-dir "$OUT_DIR" | tee "$OUT_DIR/gate.txt"
+        set -e
+        line=$(grep -E '^Gate: ' "$OUT_DIR/gate.txt" | tail -1)
+        if [ "$line" = "Gate: PASS" ]; then gate=pass failed=""; else
+          gate=fail; failed=$(echo "$line" | sed -E 's/^Gate: FAIL \((.*)\)$/\1/; s/, /,/g'); fi
+        { echo "gate=$gate"; echo "failed=$failed"; echo "junit=$OUT_DIR/junit.xml"; } >> "$GITHUB_OUTPUT"
+        { echo "## API verification: $line"; echo; cat "$OUT_DIR/report.md"; } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Enforce
+      shell: bash
+      env:
+        GATE: ${{ steps.gate.outputs.gate }}
+        FAILED: ${{ steps.gate.outputs.failed }}
+        BREAKING: ${{ steps.drift.outputs.breaking }}
+        FAIL_ON_GATE: ${{ inputs.fail-on-gate }}
+        FAIL_ON_BREAKING: ${{ inputs.fail-on-breaking }}
+      run: |
+        status=0
+        if [ "$GATE" = "fail" ] && [ "$FAIL_ON_GATE" = "true" ]; then
+          echo "::error::Requirement gate failed: $FAILED"; status=1; fi
+        if [ "${BREAKING:-0}" != "0" ] && [ "$FAIL_ON_BREAKING" = "true" ]; then
+          echo "::error::$BREAKING breaking contract change(s); see drift.md"; status=1; fi
+        exit "$status"

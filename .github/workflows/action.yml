@@ -1,0 +1,85 @@
+name: Action dogfood
+
+# Runs this repository's own composite action (uses: ./) the way a consumer would, and checks
+# its outputs: the gate must fail on exactly the two seeded defects, and drift must be
+# classified correctly for both fixture revisions.
+
+on:
+  push:
+    branches: [main, "upgrade/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start the bundled demo API
+        env:
+          API_VV_DEMO_KEY: demo-only-key
+        run: |
+          python -m pip install --quiet 'starlette>=0.40,<1' 'uvicorn>=0.30,<1'
+          python -m uvicorn examples.demo_api.app:app --port 8000 --no-access-log &
+          for _ in $(seq 50); do curl -fs http://127.0.0.1:8000/health && break; sleep 0.2; done
+      - id: vv
+        uses: ./
+        env:
+          API_VV_DEMO_KEY: demo-only-key
+        with:
+          spec: examples/demo_api/openapi.yaml
+          requirements: examples/demo_api/requirements.yaml
+          config: examples/demo_api/config.yaml
+          base-url: http://127.0.0.1:8000
+          property-cases: "5"
+          seed: "7"
+          llm: "true"
+          fail-on-gate: "false"
+      - name: The gate named exactly the seeded defects
+        env:
+          GATE: ${{ steps.vv.outputs.gate }}
+          FAILED: ${{ steps.vv.outputs.failed-requirements }}
+          JUNIT: ${{ steps.vv.outputs.junit }}
+        run: |
+          echo "gate=$GATE failed=$FAILED junit=$JUNIT"
+          test "$GATE" = fail
+          test "$FAILED" = "REQ-003,REQ-008"
+          test -s "$JUNIT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: action-dogfood-report
+          path: api-vv-report/
+
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: compatible
+        uses: ./
+        with:
+          spec: tests/fixtures/diff/v2-compatible.yaml
+          baseline-spec: tests/fixtures/diff/v1.yaml
+          out-dir: drift-compatible
+      - id: breaking
+        uses: ./
+        with:
+          spec: tests/fixtures/diff/v2-breaking.yaml
+          baseline-spec: tests/fixtures/diff/v1.yaml
+          fail-on-breaking: "false"
+          out-dir: drift-breaking
+      - name: Drift outputs
+        env:
+          COMPATIBLE: ${{ steps.compatible.outputs.breaking-changes }}
+          BREAKING: ${{ steps.breaking.outputs.breaking-changes }}
+          GATE: ${{ steps.breaking.outputs.gate }}
+        run: |
+          echo "compatible=$COMPATIBLE breaking=$BREAKING gate=$GATE"
+          test "$COMPATIBLE" = 0
+          test "$BREAKING" -gt 0
+          test "$GATE" = skipped
