@@ -570,6 +570,12 @@ tests/              pytest suite; tests/fixtures/diff/ holds the drift fixture s
 docs/               banner, screenshots, sample report and CSV matrix
 ```
 
+## Tech stack
+
+- **Language:** Python
+- **Frameworks and tools:** Pydantic, httpx, pytest, Ruff, mypy, Uvicorn, Docker
+- **CI:** GitHub Actions
+
 ## Citation
 
 If you use api-vv-toolkit or its LLM gate results, please cite it (GitHub's "Cite this repository"
