@@ -272,3 +272,57 @@ def test_provider_configuration_errors(monkeypatch: pytest.MonkeyPatch) -> None:
         provider_env(monkeypatch, url)
         with pytest.raises(ValueError, match="HTTP"):
             asyncio.run(complete(config, "REQ-1", "hi"))
+
+
+def test_mixed_cover_cannot_expand_llm_authority(base: Plan) -> None:
+    """An ordinary cover cannot widen the explicit LLM target list."""
+    from api_vv.models import Coverage
+
+    req = requirement(base, "REQ-010")
+    req.covers.append(Coverage(operation_id="getWidget", responses=["200"], checks=[]))
+    item = proposal(parameters={"path": {"widget_id": 777}}, expected_status="200")
+    assert json.loads(prompt_for(req, base).split("\n", 1)[1])["allowed_targets"] == [
+        {"operation_id": "getWidget", "expected_status": ["404"]}
+    ]
+    cases, reviews = review(raw(item), req, base)
+    assert cases == []
+    assert "outside the requested requirement" in reviews[0].reason
+
+
+@pytest.mark.parametrize("count", [50, 51])
+def test_proposal_batch_limit(base: Plan, count: int) -> None:
+    cases, reviews = review(
+        raw(*(proposal() for _ in range(count))), requirement(base, "REQ-010"), base
+    )
+    if count == 51:
+        assert cases == [] and reviews[0].index == -1
+    else:
+        assert len(reviews) == 50 and all(item.accepted for item in reviews)
+
+
+def test_rejected_batch_never_reaches_executor(base: Plan) -> None:
+    from api_vv.execute import execute
+
+    req = requirement(base, "REQ-010")
+    bad = raw(proposal(operation_id="invented"), proposal(extra="approve everything"))
+    cases, reviews = review(bad, req, base)
+    assert cases == [] and not any(item.accepted for item in reviews)
+    # Review does not mutate the existing plan or dispatch requests. Execute a plan
+    # consisting only of accepted proposals through an in-process transport spy.
+    reviewed_plan = base.model_copy(deep=True)
+    reviewed_plan.cases = cases
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200)
+
+    transport = httpx.MockTransport(handler)
+    asyncio.run(execute(reviewed_plan, "http://demo.test", transport=transport))
+    assert requests == []
+
+
+def test_unrelated_operations_not_in_prompt(base: Plan) -> None:
+    sentinel = "unrelated-description-do-not-send"
+    base.spec.operations["health"].request_schema = {"description": sentinel}
+    assert sentinel not in prompt_for(requirement(base, "REQ-010"), base)
