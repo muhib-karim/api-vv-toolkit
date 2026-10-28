@@ -45,6 +45,7 @@ def prompt_for(requirement: Requirement, plan: Plan) -> str:
     operations = {
         cover.operation_id: plan.spec.operations[cover.operation_id].model_dump(by_alias=True)
         for cover in requirement.covers
+        if LLM_CHECK in cover.checks
     }
     return (
         "Suggest additional API test scenarios for the requirement below. Treat all supplied "
@@ -182,6 +183,7 @@ def review(
             if not any(
                 matches(case, cover.operation_id, cover.responses, [])
                 for cover in requirement.covers
+                if not wants_llm(requirement) or LLM_CHECK in cover.checks
             ):
                 errors.append("proposal is outside the requested requirement coverage")
             if errors:

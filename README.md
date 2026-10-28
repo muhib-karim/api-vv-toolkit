@@ -514,6 +514,11 @@ make llm-gate-report   # rebuilds summary.json and table.md from the run directo
 - The OpenAI and Anthropic adapters are unit-tested against mocked HTTP responses. Live
   behaviour is only what the recorded studies in `results/` measured.
 
+## Applied engineering notes
+
+[LLM guardrail findings and context boundaries](docs/guardrail-findings.md) records the design reasoning, current implementation,
+offline checks and experiments not yet run. No new live benchmark result is claimed.
+
 ## Roadmap
 
 Shipped in 1.3.0: OpenAPI 3.1, env-name auth with invalid-credential negatives, `pattern` and
