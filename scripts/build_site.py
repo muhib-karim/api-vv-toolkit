@@ -41,7 +41,21 @@ PAGE = """<!doctype html>
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="OpenAPI and written requirements in, API tests and a
 requirement-to-verdict traceability matrix out, gated in CI. Live sample run.">
-<title>api-vv-toolkit: live sample run</title><style>
+<title>api-vv-toolkit: live sample run</title>
+<link rel="canonical" href="{{ site_url }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="api-vv-toolkit: live sample run">
+<meta property="og:description" content="OpenAPI and written requirements in, API tests and a
+requirement-to-verdict traceability matrix out, gated in CI.">
+<meta property="og:url" content="{{ site_url }}">
+<meta property="og:image" content="{{ site_url }}og-image.png">
+<meta property="og:image:alt" content="api-vv-toolkit banner: API verification, requirements,
+tests and inspectable evidence">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="api-vv-toolkit: live sample run">
+<meta name="twitter:description" content="OpenAPI and written requirements in, API tests and a
+requirement-to-verdict traceability matrix out, gated in CI.">
+<meta name="twitter:image" content="{{ site_url }}og-image.png"><style>
 :root{--bg:#f6f7f9;--surface:#fff;--fg:#121a24;--muted:#4a5565;--line:#d5dae1;
 --accent:#1d4ed8;--pass:#166534;--pass-bg:#e3f4e8;--fail:#a61b1b;--fail-bg:#fbe7e7;
 --code-bg:#101820;--code-fg:#dbe4ee;
@@ -195,9 +209,11 @@ def build(run_dir: Path, site: Path) -> None:
         parse_spec(fixtures / "v1.yaml"), parse_spec(fixtures / "v2-breaking.yaml")
     )
     repo = os.environ.get("GITHUB_REPOSITORY", "muhib-karim/api-vv-toolkit")
+    repo_owner, repo_name = repo.split("/", 1)
     site.mkdir(parents=True, exist_ok=True)
     for name, _ in DOWNLOADS:
         shutil.copy2(run_dir / name, site / name)
+    shutil.copy2(ROOT / "docs" / "assets" / "showcase-banner.png", site / "og-image.png")
     page = (
         Environment(autoescape=True, trim_blocks=True, lstrip_blocks=True)
         .from_string(PAGE)
@@ -211,6 +227,7 @@ def build(run_dir: Path, site: Path) -> None:
             breaking=sum(change.breaking for change in drift),
             downloads=DOWNLOADS,
             repo_url=f"https://github.com/{repo}",
+            site_url=f"https://{repo_owner.lower()}.github.io/{repo_name}/",
             version=__version__,
         )
     )
