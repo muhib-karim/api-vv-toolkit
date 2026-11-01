@@ -162,7 +162,7 @@ flowchart LR
    Retries are off by default and apply only to transport errors on GET/HEAD/OPTIONS. Each
    response is checked against the expected status, the JSON Schema of the documented body
    (using the jsonschema library), documented headers and any latency budget on the requirement.
-5. **Report.** The traceability matrix lists requirement, tests and latest verdicts, plus tests that
+5. **Report.** The traceability matrix lists each requirement, its tests and their latest verdicts, plus tests that
    trace to no requirement and operations that no requirement covers. It is written as
    Markdown, self-contained HTML (inline CSS, no scripts or external assets), CSV for
    spreadsheet workflows and JUnit XML for CI systems.
@@ -572,7 +572,7 @@ scripts/build_site.py  Pages landing built by CI from a demo run
 action.yml          composite GitHub Action (uses: muhib-karim/api-vv-toolkit@v1)
 results/            recorded live LLM gate studies (2026-10-17, 2026-10-21)
 tests/              pytest suite; tests/fixtures/diff/ holds the drift fixture specs
-docs/               banner, screenshots, sample report and CSV matrix
+docs/               banner, screenshots, sample report, CSV matrix and guardrail findings
 ```
 
 ## Tech stack

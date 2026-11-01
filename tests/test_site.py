@@ -51,6 +51,10 @@ def test_landing_reports_the_live_run(
     assert "status: expected 422, got 201" in page
     assert "path-removed" in page and "https://github.com/someone/fork" in page
     assert '<html lang="en">' in page and "<script" not in page
+    assert '<link rel="canonical" href="https://someone.github.io/fork/">' in page
+    assert 'content="https://someone.github.io/fork/og-image.png"' in page
+    assert 'name="twitter:card" content="summary_large_image"' in page
+    assert (site / "og-image.png").is_file()
     for name in ("report.html", "junit.xml", "traceability.csv", "plan.yaml", "results.yaml"):
         assert (site / name).is_file() and f'href="{name}"' in page
     assert (site / ".nojekyll").exists()
