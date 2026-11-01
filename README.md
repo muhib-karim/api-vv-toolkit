@@ -572,7 +572,7 @@ scripts/build_site.py  Pages landing built by CI from a demo run
 action.yml          composite GitHub Action (uses: muhib-karim/api-vv-toolkit@v1)
 results/            recorded live LLM gate studies (2026-10-17, 2026-10-21)
 tests/              pytest suite; tests/fixtures/diff/ holds the drift fixture specs
-docs/               banner, screenshots, sample report and CSV matrix
+docs/               banner, screenshots, sample report, CSV matrix and guardrail findings
 ```
 
 ## Tech stack
