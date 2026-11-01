@@ -162,7 +162,7 @@ flowchart LR
    Retries are off by default and apply only to transport errors on GET/HEAD/OPTIONS. Each
    response is checked against the expected status, the JSON Schema of the documented body
    (using the jsonschema library), documented headers and any latency budget on the requirement.
-5. **Report.** The traceability matrix lists requirement, tests and latest verdicts, plus tests that
+5. **Report.** The traceability matrix lists each requirement, its tests and their latest verdicts, plus tests that
    trace to no requirement and operations that no requirement covers. It is written as
    Markdown, self-contained HTML (inline CSS, no scripts or external assets), CSV for
    spreadsheet workflows and JUnit XML for CI systems.
