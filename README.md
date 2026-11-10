@@ -83,9 +83,9 @@ The demo runs against the bundled local widget API with two deliberately seeded 
 
 ![HTML traceability matrix from the seeded-defect demo: gate failed on REQ-003 and REQ-008, each requirement listing its tests, endpoint, expected and actual status and verdict](docs/assets/traceability-matrix.png)
 
-*The 1.3.0 HTML matrix from `make demo`, rendered by headless Chromium on 21 October 2026
-(`make screenshot`). Below 720px the rows become cards, and dark mode follows the system
-setting. It is an example report, not a current health monitor.*
+*The HTML matrix from `make demo`, as redesigned after 1.3.0 and rendered by headless Chromium
+on 10 November 2026 (`make screenshot`). Below 720px the rows become cards, and dark mode
+follows the system setting. It is an example report, not a current health monitor.*
 
 ## The problem
 
@@ -553,7 +553,7 @@ make test       # pytest with coverage (fails under 85%)
 make demo       # seeded-defect demo; exits non-zero unless exactly REQ-003 and REQ-008 fail
 ```
 
-The suite has 307 pytest tests (98% branch coverage) covering the parser, generators,
+The suite has 314 pytest tests (98% branch coverage) covering the parser, generators,
 property synthesis, drift classification, executor, LLM adapters, reports, the Pages builder and
 the CLI. The executor tests run the demo app in-process through
 `httpx.ASGITransport`, and the test suite blocks sockets entirely, so no network or model

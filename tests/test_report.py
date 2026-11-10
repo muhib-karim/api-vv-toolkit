@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import xml.etree.ElementTree as ET
 from collections.abc import Set
 
@@ -10,7 +11,18 @@ import pytest
 from api_vv.generate import trace_case
 from api_vv.io import plan_digest
 from api_vv.models import Config, Coverage, Plan, Result, Run
-from api_vv.report import csv_report, gate_failures, html_report, junit, markdown, matrix
+from api_vv.report import (
+    HTML_TEMPLATE,
+    REPORT_CSS,
+    THEME_CSS,
+    Matrix,
+    csv_report,
+    gate_failures,
+    html_report,
+    junit,
+    markdown,
+    matrix,
+)
 
 
 def run_with(plan: Plan, failed: Set[str] = frozenset(), missing: Set[str] = frozenset()) -> Run:
@@ -219,3 +231,67 @@ def test_html_counts_only_executed_tests_as_run(plan: Plan) -> None:
     assert [item.verdict for item in run.results].count("skipped") == 1
     page = html_report(matrix(plan, run))
     assert f"<dt>tests run</dt><dd>{len(run.results) - 1}</dd>" in page
+
+
+def test_html_report_is_one_file_and_every_link_lands(plan: Plan) -> None:
+    data = matrix(plan, run_with(plan, failed=ids_for(plan, "REQ-008")))
+    page = html_report(data, gate=["REQ-008"])
+    head, body = page.split("<body>")
+    # Inline styles and an inline icon: nothing is fetched, and the CSS is not HTML-escaped.
+    assert '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,' in head
+    assert "url(" not in page and "@import" not in page and "src=" not in page
+    assert "&#34;" not in head and "&gt;" not in head
+    assert HTML_TEMPLATE.isascii() and (THEME_CSS + REPORT_CSS).isascii()
+    assert "\\" not in THEME_CSS + REPORT_CSS
+    # Without ``home_url`` every link stays inside the page and resolves to an id.
+    hrefs = re.findall(r'href="([^"]*)"', body)
+    ids = set(re.findall(r' id="([^"]+)"', body))
+    assert hrefs and all(href.startswith("#") and href[1:] in ids for href in hrefs)
+    # One jump chip per requirement, status in words, placed before the skip target.
+    assert '<nav class="jump" aria-label="Requirements">' in body
+    assert {f"#{row.requirement.id}" for row in data.rows} <= set(hrefs)
+    assert body.count('<span class="vh">') == len(data.rows)
+    assert body.index('class="jump"') < body.index('id="matrix"')
+    assert '<nav class="nav" aria-label="Report sections">' in body and body.count("<h1") == 1
+
+
+def test_html_report_home_link_is_opt_in(plan: Plan) -> None:
+    data = matrix(plan, run_with(plan))
+    plain = html_report(data)
+    assert "index.html" not in plain and "Overview" not in plain
+    linked = html_report(data, home_url="index.html")
+    # The brand and one labelled link lead back; the rest of the page is unchanged.
+    assert linked.count('href="index.html"') == 2 and "Overview" in linked
+    assert linked.split("<main>")[1] == plain.split("<main>")[1]
+
+
+def test_html_filter_empty_state_exists_only_when_all_verified(plan: Plan) -> None:
+    clean = html_report(matrix(plan, run_with(plan)))
+    assert '<tr class="all-clear">' in clean and "Every requirement is verified" in clean
+    failing = html_report(matrix(plan, run_with(plan, failed=ids_for(plan, "REQ-008"))))
+    assert (
+        '<tr class="all-clear">' not in failing and "Every requirement is verified" not in failing
+    )
+    assert '<tr class="all-clear">' not in html_report(matrix(plan, None))
+
+
+def test_html_report_renders_sparse_matrices(plan: Plan) -> None:
+    """A render error would also lose the Markdown, CSV and JUnit files written beside it."""
+    empty = Matrix(rows=[], untraced_tests=[], operations_without_requirements=[], results={})
+    page = html_report(empty, gate=[])
+    assert "Gate: PASS" in page and "API: verification and validation report" in page
+    assert "0 requirements traced to 0 tests" in page and 'class="jump"' not in page
+    # Hand-built, without the optional display context: counts still come out right.
+    first = matrix(plan, run_with(plan)).rows[0]
+    bare = Matrix(
+        rows=[first],
+        untraced_tests=["TC-a", "TC-b"],
+        operations_without_requirements=["listWidgets"],
+        results={},
+    )
+    page = html_report(bare, matrix_only=True)
+    assert f"1 requirements traced to {len(first.cases)} tests" in page
+    assert "2 untraced tests" in page and "listWidgets" in page
+    # A verdict the palette has no colour for still renders, as a neutral badge.
+    odd = first.model_copy(update={"verdicts": {case.id: "flaky" for case in first.cases}})
+    assert ">flaky</span>" in html_report(bare.model_copy(update={"rows": [odd]}))

@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The project uses semant
 
 ## [Unreleased]
 
+### Added
+
+- The HTML report has a jump strip: one chip per requirement, with its status as an icon and a
+  word, linking to that requirement's row. A row reached through a link (`report.html#REQ-003`)
+  is highlighted and lands below the sticky header. With the "not verified" filter on, chips
+  for hidden rows are hidden too, and a report where every requirement is verified says so
+  instead of showing an empty table.
+- `html_report(home_url=...)` adds a link back to a page that embeds the report. The CLI never
+  sets it, so `report.html` stays one self-contained file with no outbound links.
+- Both pages carry an inline SVG favicon. The Pages site also ships a touch icon and a 1200x630
+  Open Graph card (`docs/assets/og-image.svg`); the previous card was a 1280x360 banner that
+  link previews cropped.
+- The Pages landing has section navigation, one linked cell per requirement in its run summary,
+  and, when built in CI, links to the workflow run and the commit that produced it. The
+  published matrix links back to the landing.
+
+### Changed
+
+- The HTML report and the Pages landing are redesigned on one shared design system (`THEME_CSS`
+  in `report.py`): paper-and-ink chrome, a serif display face and monospace data from system
+  fonts only, and colour reserved for verdicts. Light and dark palettes are chosen separately,
+  and every text pair measures at least 5.5:1. The report's data, row anchors, script-free
+  filter and stacked cards below 720px are unchanged.
+- `scripts/build_site.py` renders the published `report.html` itself (the run's report plus the
+  link back) and stops if anything else would differ from the run's own `report.html`.
+- The report's caption counts traced tests from its rows, so a hand-built `Matrix` without
+  `cases` no longer shows a negative count.
+
 ### Fixed
 
 - String-typed path, query, header and cookie parameters no longer get a `wrong-type` negative.

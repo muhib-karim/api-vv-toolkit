@@ -2,6 +2,17 @@
 
 Which agent skill drove which change. Only skills actually loaded in the session are listed.
 
+## Unreleased
+
+### Pages landing and HTML report redesign
+
+| Skill | What it drove |
+| --- | --- |
+| `website` | The static-site craft floor and review loop for `scripts/build_site.py` and `report.py`: semantic landmarks, a real title, visible focus, no horizontal overflow at 390px, and reading headless renders at 1440x900 and 390x844 in both themes before calling a pass done. Its publish and receipt steps were not run; the site still deploys only through `pages.yml`. |
+| `dataviz` | The rules behind the stat tiles and the requirement strip: status colours reserved for verdicts and always paired with an icon and a word, figures set in text ink rather than a status colour, and a dark palette chosen separately instead of inverted. Contrast was measured from the shipped tokens (lowest text pair 5.55:1 in light, 6.48:1 in dark). |
+
+Asked for but not installed in that session, so not used: `frontend-design`.
+
 ## v1.3.0
 
 ### Slice 1: OpenAPI 3.1 and auth, seeded negatives, contract drift, CI gates
