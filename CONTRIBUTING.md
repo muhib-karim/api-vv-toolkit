@@ -10,7 +10,7 @@ python3 -m venv .venv
 ## Before opening a pull request
 
 ```bash
-make check   # ruff check, ruff format --check, mypy --strict src, pytest (coverage >= 85%)
+make check   # ruff check, ruff format --check, mypy --strict (package, tests, scripts), pytest (coverage >= 85%)
 make demo    # must still report exactly the two seeded defects
 ```
 

@@ -11,7 +11,7 @@ import pytest
 
 from api_vv import cli
 from api_vv.execute import execute
-from api_vv.io import read_data
+from api_vv.io import plan_digest, read_data, write_data
 from api_vv.models import Config, Plan, Run
 
 DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo_api"
@@ -174,3 +174,101 @@ def test_version_matches_package(capsys: pytest.CaptureFixture[str]) -> None:
         cli.main(["--version"])
     assert exc.value.code == 0
     assert capsys.readouterr().out.strip() == __version__
+
+
+def test_generate_accepts_unquoted_date_examples(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        "openapi: 3.0.3\n"
+        "info: {title: t, version: '1'}\n"
+        "paths:\n"
+        "  /events:\n"
+        "    get:\n"
+        "      operationId: listEvents\n"
+        "      parameters:\n"
+        "        - {name: since, in: query, schema: {type: string, format: date},"
+        " example: 2024-01-15}\n"
+        "      responses:\n"
+        "        '200': {description: ok}\n",
+        encoding="utf-8",
+    )
+    reqs = tmp_path / "reqs.yaml"
+    reqs.write_text(
+        "requirements:\n  - {id: REQ-001, text: t, priority: must, verification_method: test,"
+        " covers: [{operation_id: listEvents, responses: ['200']}]}\n",
+        encoding="utf-8",
+    )
+    plan = tmp_path / "plan.yaml"
+    code, out, err = call(
+        capsys, "generate", "--spec", str(spec), "--requirements", str(reqs), "--out", str(plan)
+    )
+    assert (code, err) == (0, "") and out.startswith("Generated ")
+    assert "since: '2024-01-15'" in plan.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("url", ["http://localhost:80a0", "http://[::1", "http://localhost:99999"])
+def test_malformed_base_url_is_invalid_input_not_a_failed_gate(
+    url: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = str(tmp_path / "plan.yaml")
+    assert call(capsys, "generate", "--spec", SPEC, "--requirements", REQS, "--out", plan)[0] == 0
+    code, out, err = call(
+        capsys, "run", "--plan", plan, "--base-url", url, "--out", str(tmp_path / "results.yaml")
+    )
+    assert (code, out) == (2, "")
+    assert err == "error: base URL must be an HTTP(S) URL without credentials, query or fragment\n"
+
+
+def test_empty_spec_sections_do_not_look_like_breaking_drift(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 1 means breaking drift; a document the parser cannot read must exit 2."""
+    spec = tmp_path / "spec.yaml"
+    document = (
+        "openapi: 3.0.3\ninfo: {title: t, version: '1'}\ncomponents:\npaths:\n  /a:\n"
+        "    get:\n      responses:\n        '200':"
+    )
+    spec.write_text(document + "\n", encoding="utf-8")  # a response with nothing under it
+    code, _, err = call(capsys, "diff", str(spec), str(spec))
+    assert (code, err) == (2, "error: invalid or unreadable input (AttributeError)\n")
+    spec.write_text(document + " {description: ok}\n", encoding="utf-8")  # only components: empty
+    assert call(capsys, "diff", str(spec), str(spec)) == (0, "No contract changes.\n", "")
+
+
+def test_unexpected_errors_never_exit_1(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def crash(args: Any) -> int:
+        raise RuntimeError("internal")
+
+    monkeypatch.setattr(cli, "dispatch", crash)
+    code, _, err = call(capsys, "diff", "old.yaml", "new.yaml")
+    assert code == 2
+    # The traceback stays visible for a bug report; the exit code still is not the gate's.
+    assert "Traceback" in err and err.endswith("error: unexpected failure (RuntimeError)\n")
+
+
+def test_empty_config_file_means_defaults(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "config.yaml"
+    config.write_text("# nothing set\n", encoding="utf-8")
+    assert cli.load_config(str(config)) == Config()
+    # Only an empty file: any other non-mapping is still a mistake worth reporting.
+    config.write_text("[]\n", encoding="utf-8")
+    code, _, err = call(capsys, "trace", "--plan", str(config), "--config", str(config))
+    assert code == 2 and err.startswith("error: ")
+
+
+def test_date_like_strings_survive_a_plan_file_round_trip(tmp_path: Path, plan: Plan) -> None:
+    """The plan digest ties results to a plan, so reloading must not retype any string."""
+    plan.cases[0].name = "2024-01-15"
+    plan.cases[1].name = "2024-01-15 10:00:00"
+    plan.cases[2].body = {"at": "2024-01-15T10:00:00Z"}
+    path = tmp_path / "plan.yaml"
+    write_data(path, plan)
+    reloaded = Plan.model_validate(read_data(path))
+    assert plan_digest(reloaded) == plan_digest(plan)
+    assert reloaded.cases[1].name == "2024-01-15 10:00:00"

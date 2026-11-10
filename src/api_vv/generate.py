@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from api_vv.io import fingerprint
+from api_vv.io import fingerprint, scalar
 from api_vv.models import Case, Operation, Parameter, Plan, Requirements, Schema, Spec
 from api_vv.spec import validate_requirements
 from api_vv.synth import FORMATS, random_instance, regex_example
@@ -161,6 +161,24 @@ def mutations(value: Any, schema: Schema, path: str) -> Iterator[tuple[Any, str]
                 yield changed, check
 
 
+# jsonschema checks these formats only when its optional extras are installed, yet the text of
+# a number or boolean is never either. Deciding here keeps plans independent of the environment.
+TEXT_ONLY_FORMATS = frozenset({"date-time", "uri"})
+
+
+def violates_as_text(value: Any, schema: Schema) -> bool:
+    """Whether a parameter value is still invalid once sent.
+
+    Path, query, header and cookie values travel as text, so the integer ``1`` proposed as a
+    wrong type for a string parameter arrives as the perfectly valid string ``"1"``.
+    """
+    if valid(value, schema):
+        return False
+    if not valid(scalar(value), schema):
+        return True
+    return isinstance(schema, dict) and schema.get("format") in TEXT_ONLY_FORMATS
+
+
 def matches(case: Case, operation_id: str, responses: list[str], checks: list[str]) -> bool:
     return (
         case.operation_id == operation_id
@@ -296,9 +314,12 @@ def operation_cases(
             for replacement, check in mutations(
                 value, param.schema_, f"{param.location}.{param.name}"
             ):
+                invalid = not valid(replacement, param.schema_)
+                if invalid and not violates_as_text(replacement, param.schema_):
+                    continue  # no request can express this violation
                 changed = base.model_copy(deep=True)
                 changed.parameters[param.location][param.name] = replacement
-                add(changed, check, not valid(replacement, param.schema_), "parameter-boundary")
+                add(changed, check, invalid, "parameter-boundary")
             if param.required and param.location != "path":
                 changed = base.model_copy(deep=True)
                 del changed.parameters[param.location][param.name]
@@ -332,7 +353,8 @@ def operation_cases(
                 )
             cases.append(changed)
     covered = {case.expected_status for case in cases if case.enabled}
-    for code in op.responses.keys() - covered:
+    # Sorted: set order follows the per-process string hash and would reorder the plan file.
+    for code in sorted(op.responses.keys() - covered):
         changed = base.model_copy(deep=True)
         changed.expected_status = code
         changed.enabled = False
@@ -383,7 +405,13 @@ def add_property_cases(
         label, schema = rng.choice(targets)
         found, value = random_instance(schema, rng)
         path = "" if label == "body" else label
-        broken = [item for item in mutations(value, schema, path) if not valid(item[0], schema)]
+        broken = [
+            item
+            for item in mutations(value, schema, path)
+            if (
+                not valid(item[0], schema) if label == "body" else violates_as_text(item[0], schema)
+            )
+        ]
         if not found or not broken:
             continue
         bad, check = rng.choice(broken)

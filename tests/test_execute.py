@@ -7,8 +7,11 @@ import httpx
 import pytest
 
 from api_vv.execute import execute, request_parts, validate_plan, validate_response
+from api_vv.generate import generate
 from api_vv.models import Case, Config, Plan, Response, Result, SecurityScheme
 from api_vv.report import gate_failures, matrix
+from api_vv.spec import parse_document
+from tests.conftest import one_operation, requirement_for, run_against
 
 
 def results_by_requirement(plan: Plan, results: list[Result]) -> dict[str, set[str]]:
@@ -261,3 +264,88 @@ def test_timeout_fails_the_case(plan: Plan) -> None:
         execute(health_plan(plan), "http://h.test", config, httpx.MockTransport(hang))
     )
     assert run.results[0].errors == ["request failed (TimeoutError)"]
+
+
+def single_case_plan(responses: dict[str, Any], **document: Any) -> Plan:
+    return generate(parse_document(one_operation(responses, **document)), requirement_for("a"))
+
+
+@pytest.mark.parametrize("documented", ["application/json; charset=utf-8", "Application/JSON"])
+def test_documented_media_types_match_like_http(documented: str) -> None:
+    """Media types are case-insensitive and specs may document them with parameters."""
+    content = {documented: {"schema": {"type": "object", "required": ["id"]}}}
+    plan = single_case_plan({"200": {"description": "ok", "content": content}})
+    headers = {"content-type": "application/json; charset=utf-8"}
+
+    def serve(body: bytes) -> list[str]:
+        served = httpx.Response(200, content=body, headers=headers)
+        return run_against(plan, lambda request: served)[0].errors
+
+    assert serve(b'{"id": 1}') == []
+    assert serve(b"{}") == ["body schema: / [required]"]
+
+
+def test_exact_media_type_key_wins_over_its_bare_form() -> None:
+    """Two documented entries may differ only by a parameter; neither may shadow the other."""
+    content = {
+        "text/plain; charset=utf-8": {"schema": {"type": "string", "maxLength": 1}},
+        "text/plain; charset=ascii": {"schema": {"type": "string"}},
+    }
+    plan = single_case_plan({"200": {"description": "ok", "content": content}})
+
+    def serve(content_type: str) -> list[str]:
+        served = httpx.Response(200, text="hello", headers={"content-type": content_type})
+        return run_against(plan, lambda request: served)[0].errors
+
+    assert serve("text/plain; charset=utf-8") == ["body schema: / [maxLength]"]
+    assert serve("text/plain; charset=ascii") == []
+    assert serve("text/plain") == ["body schema: / [maxLength]"]  # first documented entry
+
+
+@pytest.mark.parametrize(
+    "version, schema",
+    [("3.0.3", {"type": "integer", "nullable": True}), ("3.1.0", {"type": ["integer", "null"]})],
+)
+def test_nullable_integer_response_header(version: str, schema: dict[str, Any]) -> None:
+    responses = {"200": {"description": "ok", "headers": {"X-Remaining": {"schema": schema}}}}
+    plan = single_case_plan(responses, version=version)
+
+    def serve(value: str) -> list[str]:
+        served = httpx.Response(200, headers={"X-Remaining": value})
+        return run_against(plan, lambda request: served)[0].errors
+
+    assert serve("5") == []
+    assert serve("many") == ["header X-Remaining schema: / [type]"]
+
+
+def test_header_declared_as_integer_or_number_accepts_both() -> None:
+    schema = {"type": ["integer", "number"], "maximum": 2}
+    responses = {"200": {"description": "ok", "headers": {"X-Load": {"schema": schema}}}}
+    plan = single_case_plan(responses)
+
+    def serve(value: str) -> list[str]:
+        served = httpx.Response(200, headers={"X-Load": value})
+        return run_against(plan, lambda request: served)[0].errors
+
+    assert serve("1") == [] and serve("1.5") == []
+    assert serve("2.5") == ["header X-Load schema: / [maximum]"]
+
+
+def test_head_response_has_no_body_to_validate() -> None:
+    content = {"application/json": {"schema": {"type": "object"}}}
+    responses = {"200": {"description": "ok", "content": content}}
+    plan = single_case_plan(responses, method="head")
+    served = httpx.Response(200, headers={"content-type": "application/json"})
+    assert run_against(plan, lambda request: served)[0].errors == []
+
+
+def test_request_that_cannot_be_built_fails_its_own_case_only(plan: Plan) -> None:
+    """One malformed URL is that case's failure; the other cases still get a verdict."""
+    edited = health_plan(plan)
+    edited.spec.operations["health"].path = "/health\x00"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("an invalid URL must never be sent")
+
+    run = asyncio.run(execute(edited, "http://h.test", Config(), httpx.MockTransport(handler)))
+    assert [result.errors for result in run.results] == [["request failed (InvalidURL)"]]

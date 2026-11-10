@@ -2,6 +2,63 @@
 
 All notable changes to this project are documented here. The project uses semantic versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- String-typed path, query, header and cookie parameters no longer get a `wrong-type` negative.
+  Parameters are sent as text, so the integer `1` arrived as the valid string `1` and a correct
+  server failed the case. Negatives that survive serialization (a non-date for `format: date`,
+  a non-number for `integer`) are kept. A requirement that selected `wrong-type:<in>.<name>` for
+  a plain string parameter has no such case any more and needs another check.
+- Unquoted YAML dates such as `example: 2024-01-15` stay strings. They were loaded as
+  `datetime.date` and `generate` stopped with `invalid or unreadable input (TypeError)`.
+- OpenAPI 3.1 `$ref` beside annotations (`description`, `summary`, `readOnly`, `example`,
+  `default`, `x-*`) keeps the referenced object. Such a parameter crashed the parser, a
+  response or request body lost its content, and a schema property lost its boundary cases.
+  Constraint siblings are still combined through `allOf`; 3.0 still ignores siblings.
+- Plans are byte-identical across runs. Review cases for uncovered statuses were emitted in
+  set order, which follows `PYTHONHASHSEED`, so the same input gave different plan files and
+  digests. They are now sorted.
+- Exit code 1 is only ever a failed gate or breaking drift. A malformed `--base-url`
+  (`http://localhost:80a0`, port 99999), an empty `components:`, `info:` or `paths:` section,
+  an empty mock fixtures file and any unexpected error now exit 2; the last keeps its traceback.
+- JUnit XML stays well-formed when an error message carries a control character (a response
+  key, for instance); characters XML 1.0 forbids are replaced with U+FFFD.
+- Response media types are matched case-insensitively and without parameters, so a contract
+  documenting `application/json; charset=utf-8` no longer reports every response as
+  undocumented. An exact key still wins.
+- Nullable numeric response headers (`nullable: true` in 3.0, `["integer", "null"]` in 3.1)
+  are read as numbers instead of failing their own schema.
+- `api-vv diff` reports a required response header that becomes optional
+  (`response-header-optional`) and an OAuth scope added to an existing security alternative
+  (`security-scope-added`) as breaking. Both were silent.
+- The Anthropic adapter turns an unexpected reply shape into the redacted
+  `LLM provider request failed` error instead of a traceback; so does a malformed LLM base URL.
+- Smaller: tab-indented or BOM-prefixed `.json` documents load (they are parsed as JSON, so
+  `1e5` is a number); HEAD responses are not checked for a body; untraced case ids are escaped
+  in the Markdown report; the HTML "tests run" tally excludes skipped cases; an empty config
+  file means defaults.
+
+### Security
+
+- The `demo` extra requires `starlette>=1.3.1,<2`. Earlier versions carry CVE-2026-48710,
+  CVE-2026-48817, CVE-2026-48818, CVE-2026-54282 and CVE-2026-54283. Only the bundled demo API
+  uses starlette; the five runtime dependencies are unchanged.
+
+### CI
+
+- Every action is pinned to a commit, checkouts do not persist credentials, and the Pages
+  workflow grants `pages: write` and `id-token: write` to the deploy job only.
+- New `audit` job: `pip-audit` over the runtime and demo dependencies, and zizmor over the
+  workflows. The gitleaks download is checked against its published sha256.
+- Tests run on Python 3.11 to 3.14. `mypy --strict` also covers tests, scripts and examples.
+- The demo job fails when `docs/sample-report.md` or `docs/sample-traceability.csv` differ
+  from a fresh run.
+- The release workflow triggers on full `vX.Y.Z` tags only, so moving the floating `v1` tag
+  no longer starts a release run that fails. Jobs have timeouts. Dependabot also tracks the
+  Docker base image.
+
 ## [1.3.0] - 2026-10-21
 
 ### Added

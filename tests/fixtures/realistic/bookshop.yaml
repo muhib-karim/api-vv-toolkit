@@ -1,0 +1,115 @@
+# A deliberately ordinary contract: the constructs real specs use and the generators must
+# handle without false failures (text parameters, unquoted dates, media-type parameters,
+# nullable headers, HEAD, bearer auth, problem+json). Exercised by tests/test_realistic.py.
+openapi: 3.0.3
+info: {title: Bookshop, version: 2.4.0}
+servers: [{url: https://api.example.test/v2}]
+tags: [{name: books}]
+security: [{bearerAuth: []}]
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      parameters:
+        - {name: q, in: query, schema: {type: string, minLength: 2}}
+        - {name: genre, in: query, schema: {type: string, enum: [fiction, science, history]}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: inStock, in: query, schema: {type: boolean}}
+        - {name: publishedAfter, in: query, schema: {type: string, format: date}, example: 2020-01-01}
+        - {name: X-Request-Id, in: header, schema: {type: string, format: uuid}}
+        - {name: session, in: cookie, schema: {type: string}}
+      responses:
+        '200':
+          description: A page of books
+          headers:
+            X-Total-Count: {required: true, schema: {type: integer}}
+            X-RateLimit-Remaining: {schema: {type: integer, nullable: true}}
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Book'}}
+                  next: {type: string, nullable: true}
+        '400': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createBook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewBook'}
+      responses:
+        '201':
+          description: Created
+          headers: {Location: {required: true, schema: {type: string, format: uri}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Book'}}}
+        '422': {$ref: '#/components/responses/Problem'}
+  /books/{isbn}:
+    parameters:
+      - {name: isbn, in: path, required: true, schema: {type: string, pattern: '^[0-9]{13}$'}}
+    get:
+      operationId: getBook
+      security: []
+      responses:
+        '200': {description: The book, content: {application/json: {schema: {$ref: '#/components/schemas/Book'}}}}
+        '404': {$ref: '#/components/responses/Problem'}
+    head:
+      operationId: headBook
+      security: []
+      responses:
+        '200': {description: Exists, content: {application/json: {schema: {$ref: '#/components/schemas/Book'}}}}
+        '404': {description: Missing}
+    delete:
+      operationId: deleteBook
+      responses:
+        '204': {description: Deleted}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /health:
+    get:
+      operationId: health
+      security: []
+      responses:
+        '200': {description: ok, content: {text/plain: {schema: {type: string}}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: Bearer}
+  responses:
+    Problem:
+      description: Problem details
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            required: [title, status]
+            properties: {title: {type: string}, status: {type: integer}, detail: {type: string}}
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: {type: number, minimum: 0, exclusiveMinimum: true, multipleOf: 0.01}
+        currency: {type: string, pattern: '^[A-Z]{3}$'}
+    NewBook:
+      type: object
+      required: [isbn, title, price]
+      properties:
+        isbn: {type: string, pattern: '^[0-9]{13}$'}
+        title: {type: string, minLength: 1, maxLength: 200}
+        subtitle: {type: string, nullable: true}
+        price: {$ref: '#/components/schemas/Money'}
+        published: {type: string, format: date, example: 2021-06-30}
+        tags: {type: array, items: {type: string}, maxItems: 5, uniqueItems: true}
+        attributes: {type: object, additionalProperties: {type: string}}
+    Book:
+      allOf:
+        - $ref: '#/components/schemas/NewBook'
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id: {type: string, format: uuid, readOnly: true}
+            createdAt: {type: string, format: date-time, example: 2021-06-30T10:15:00Z}

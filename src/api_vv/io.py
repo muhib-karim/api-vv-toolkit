@@ -14,8 +14,36 @@ from pydantic import BaseModel
 from api_vv.models import Case, Plan
 
 
+class _Loader(yaml.SafeLoader):
+    """SafeLoader without YAML 1.1 timestamps.
+
+    OpenAPI documents are JSON-compatible YAML, where an unquoted ``2024-01-15`` is a string.
+    PyYAML would turn it into a ``datetime.date`` that no JSON request or fingerprint can carry.
+    """
+
+
+_Loader.yaml_implicit_resolvers = {
+    first: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+
 def read_data(path: str | Path) -> Any:
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    text = Path(path).read_text(encoding="utf-8")
+    if Path(path).suffix.lower() == ".json":
+        # YAML is not a strict superset of JSON (tab indentation, for one): parse JSON as JSON.
+        try:
+            return json.loads(text.removeprefix("\ufeff"))
+        except json.JSONDecodeError:
+            pass  # YAML saved under a .json name still loads below
+    return yaml.load(text, Loader=_Loader)  # a SafeLoader subclass: still safe loading
+
+
+def scalar(value: Any) -> str:
+    """The text a path, query, header or cookie parameter value is sent as."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return "" if value is None else str(value)
 
 
 def write_data(path: str | Path, model: BaseModel) -> None:
@@ -29,15 +57,21 @@ def write_data(path: str | Path, model: BaseModel) -> None:
 
 def check_base_url(value: str, label: str) -> None:
     """Credentials are only ever sent to a plain HTTP(S) origin the user named."""
-    url = httpx.URL(value)
+    message = f"{label} must be an HTTP(S) URL without credentials, query or fragment"
+    try:
+        url = httpx.URL(value)
+    except httpx.InvalidURL:
+        raise ValueError(message) from None
     if (
         url.scheme not in {"http", "https"}
         or not url.host
         or url.userinfo
         or url.query
         or url.fragment
+        # httpx accepts any integer; the socket layer later fails outside its error types.
+        or (url.port is not None and not 0 < url.port < 65536)
     ):
-        raise ValueError(f"{label} must be an HTTP(S) URL without credentials, query or fragment")
+        raise ValueError(message)
 
 
 def unsafe_path(path: str) -> bool:

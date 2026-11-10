@@ -185,3 +185,37 @@ def test_html_without_results_or_gate(plan: Plan) -> None:
     page = html_report(matrix(plan, None), matrix_only=True)
     assert "Gate:" not in page
     assert ">not run</span>" in page
+
+
+def test_junit_stays_well_formed_with_control_characters(plan: Plan) -> None:
+    """Error paths repeat response keys, and a server may send any character in a key."""
+    failed = ids_for(plan, "REQ-003")
+    run = run_with(plan, failed=failed)
+    (case_id,) = failed
+    result = next(item for item in run.results if item.case_id == case_id)
+    result.errors = ["body schema: /bad\x01key\x1b[0m [type]"]
+    root = ET.fromstring(junit(plan, matrix(plan, run), Config()))
+    node = next(item for item in root.iter("testcase") if item.get("name") == case_id)
+    failure = node.find("failure")
+    assert failure is not None
+    assert failure.get("message") == "body schema: /bad\ufffdkey\ufffd[0m [type]"
+    assert failure.text == failure.get("message")
+
+
+def test_markdown_escapes_untraced_case_ids(plan: Plan) -> None:
+    """Case ids are free text in a hand-edited plan and end up in the CI job summary."""
+    plan = plan.model_copy(deep=True)
+    untraced = next(case for case in plan.cases if not case.requirement_ids)
+    untraced.id = "TC|x <img src=x>"
+    text = markdown(matrix(plan, None))
+    assert "TC&#124;x &lt;img src=x&gt;" in text and "<img" not in text
+
+
+def test_html_counts_only_executed_tests_as_run(plan: Plan) -> None:
+    plan = plan.model_copy(deep=True)
+    plan.cases[0].enabled = False
+    plan.cases[0].review_reason = "needs review"
+    run = run_with(plan)
+    assert [item.verdict for item in run.results].count("skipped") == 1
+    page = html_report(matrix(plan, run))
+    assert f"<dt>tests run</dt><dd>{len(run.results) - 1}</dd>" in page

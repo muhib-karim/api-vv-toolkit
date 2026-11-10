@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import random
 import re
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -299,3 +303,35 @@ def test_random_instance_accepts_integral_float_bounds() -> None:
 )
 def test_random_instance_refuses_huge_sizes(schema: dict[str, Any]) -> None:
     assert random_instance(schema, random.Random(5)) == (False, None)
+
+
+def test_plan_bytes_do_not_depend_on_the_hash_seed(tmp_path: Path) -> None:
+    """Same inputs, same plan file: string hashing differs per process unless pinned."""
+    codes = (200, 401, 403, 404, 409, 429, 500)
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /orders:\n    get:\n"
+        "      operationId: listOrders\n"
+        "      parameters:\n        - {name: limit, in: query, schema: {type: integer}}\n"
+        "      responses:\n" + "".join(f"        '{code}': {{description: x}}\n" for code in codes),
+        encoding="utf-8",
+    )
+    reqs = tmp_path / "reqs.yaml"
+    reqs.write_text(
+        "requirements:\n  - {id: REQ-001, text: t, priority: must, verification_method: test,"
+        " covers: [{operation_id: listOrders, responses: ['200']}]}\n",
+        encoding="utf-8",
+    )
+    plans = set()
+    for hash_seed in ("0", "1", "2", "3"):
+        out = tmp_path / f"plan-{hash_seed}.yaml"
+        command = [sys.executable, "-m", "api_vv.cli", "generate", "--spec", str(spec)]
+        command += ["--requirements", str(reqs), "--property-cases", "3", "--seed", "7"]
+        subprocess.run(
+            [*command, "--out", str(out)],
+            check=True,
+            capture_output=True,
+            env={**os.environ, "PYTHONHASHSEED": hash_seed},
+        )
+        plans.add(out.read_bytes())
+    assert len(plans) == 1

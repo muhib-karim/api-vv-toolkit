@@ -1,12 +1,14 @@
 name: Release
 
-# On a v* tag: test, build wheel + sdist with SHA256SUMS.txt, and publish the GitHub release
+# On a vX.Y.Z tag: test, build wheel + sdist with SHA256SUMS.txt, and publish the GitHub release
 # with the committed RELEASE_NOTES_<tag>.md as its body. The floating major tag (v1) used by
 # `uses: muhib-karim/api-vv-toolkit@v1` is moved by a maintainer after the release is checked.
 
 on:
   push:
-    tags: ["v*"]
+    # Full versions only: moving the floating major tag (v1) must not start a release run,
+    # which would fail on the missing RELEASE_NOTES_v1.md.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   workflow_dispatch:
     inputs:
       tag:
@@ -19,13 +21,15 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           ref: ${{ env.TAG }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Release notes and version match the tag

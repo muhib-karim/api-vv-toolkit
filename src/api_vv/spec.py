@@ -22,6 +22,23 @@ from api_vv.models import (
     Spec,
 )
 
+# Keywords beside a 3.1 ``$ref`` that describe the target without constraining it.
+REF_ANNOTATIONS = frozenset(
+    {
+        "summary",
+        "description",
+        "title",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "example",
+        "examples",
+        "default",
+        "externalDocs",
+        "$comment",
+    }
+)
+
 
 def resolve_refs(document: dict[str, Any]) -> dict[str, Any]:
     """Resolve JSON Pointers within this document, without any network access."""
@@ -50,8 +67,12 @@ def resolve_refs(document: dict[str, Any]) -> dict[str, Any]:
         if siblings:
             if not isinstance(resolved, dict):
                 raise ValueError("$ref siblings require an object target")
-            # Schema siblings are conjunctive in 3.1; do not overwrite constraints.
             if document.get("openapi", "").startswith("3.1"):
+                if all(key in REF_ANNOTATIONS or key.startswith("x-") for key in siblings):
+                    # 3.1 Reference Objects may override summary/description, and annotations
+                    # constrain nothing: merge them so the target keeps its own shape.
+                    return {**resolved, **siblings}
+                # Schema siblings are conjunctive in 3.1; do not overwrite constraints.
                 return {"allOf": [resolved, siblings]}
         return resolved
 
@@ -146,8 +167,13 @@ def first_example(container: dict[str, Any]) -> tuple[bool, Any]:
     return False, None
 
 
-def is_json(media_type: str) -> bool:
-    media = media_type.split(";", 1)[0].strip().lower()
+def media_type(value: str) -> str:
+    """Media types compare case-insensitively and without parameters such as ``charset``."""
+    return value.split(";", 1)[0].strip().lower()
+
+
+def is_json(value: str) -> bool:
+    media = media_type(value)
     return media == "application/json" or media.endswith("+json")
 
 
@@ -174,10 +200,11 @@ def parse_document(raw: Any) -> Spec:
             # RFC 9110: authentication scheme names are case-insensitive.
             scheme=item["scheme"].lower() if isinstance(item.get("scheme"), str) else None,
         )
-        for name, item in doc.get("components", {}).get("securitySchemes", {}).items()
+        # An empty ``components:`` or ``paths:`` key is YAML null, not a missing key.
+        for name, item in ((doc.get("components") or {}).get("securitySchemes") or {}).items()
     }
     operations: dict[str, Operation] = {}
-    for path, item in doc.get("paths", {}).items():
+    for path, item in (doc.get("paths") or {}).items():
         if unsafe_path(path):
             raise ValueError(f"unsafe operation path: {path}")
         for method in ("get", "post", "put", "patch", "delete", "head", "options", "trace"):
@@ -239,7 +266,7 @@ def parse_document(raw: Any) -> Spec:
                 )
             if not responses:
                 raise ValueError(f"operation has no responses: {op_id}")
-            security = value.get("security", doc.get("security", []))
+            security = value.get("security", doc.get("security") or [])
             if any(name not in schemes for group in security for name in group):
                 raise ValueError(f"unknown security scheme: {op_id}")
             operations[op_id] = Operation(
@@ -254,14 +281,14 @@ def parse_document(raw: Any) -> Spec:
                 security=security,
             )
     # 3.1 webhooks are requests the API sends, not ones a client can make; list, never test.
-    webhooks = sorted(doc.get("webhooks", {}))
+    webhooks = sorted(doc.get("webhooks") or {})
     if not operations:
         raise ValueError(
             "spec has no operations" + (" (webhooks are not tested)" if webhooks else "")
         )
     return Spec(
         openapi=doc["openapi"],
-        title=doc.get("info", {}).get("title", "API"),
+        title=(doc.get("info") or {}).get("title", "API"),
         operations=operations,
         security_schemes=schemes,
         webhooks=webhooks,

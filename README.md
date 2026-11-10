@@ -6,10 +6,10 @@
   <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/codeql.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/action.yml"><img src="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/action.yml/badge.svg" alt="Action dogfood"></a>
-  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-97%25%20(gate%20%E2%89%A585%25)-brightgreen.svg" alt="Coverage 97%, CI gate at 85%"></a>
+  <a href="https://github.com/muhib-karim/api-vv-toolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage-98%25%20(gate%20%E2%89%A585%25)-brightgreen.svg" alt="Coverage 98%, CI gate at 85%"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/muhib-karim/api-vv-toolkit" alt="License: MIT"></a>
   <img src="https://img.shields.io/github/languages/top/muhib-karim/api-vv-toolkit" alt="Top language">
-  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg" alt="Python 3.11 | 3.12 | 3.13 | 3.14">
   <a href="https://github.com/muhib-karim/api-vv-toolkit/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/api-vv-toolkit" alt="Release"></a>
   <a href="https://muhib-karim.github.io/api-vv-toolkit/"><img src="https://img.shields.io/badge/live%20sample%20run-GitHub%20Pages-brightgreen.svg" alt="Live sample run"></a>
   <a href="#measured-results-the-llm-gate-against-live-models"><img src="https://img.shields.io/badge/results-measured%20live-blue.svg" alt="Measured results"></a>
@@ -193,7 +193,8 @@ api-vv generate --spec openapi.yaml --requirements requirements.yaml --property-
 api-vv diff contracts/published.yaml openapi.yaml --format md
 ```
 
-Exit codes: `0` gate passed (or no breaking drift), `1` gate failed (or breaking drift), `2` invalid input.
+Exit codes: `0` gate passed (or no breaking drift), `1` gate failed (or breaking drift), `2` invalid
+input or an unexpected error. `1` is never anything but a verdict, so a CI job can trust it.
 
 A requirement names the operations and responses it covers. The optional `checks` list narrows
 the match to specific generated checks:
@@ -217,7 +218,9 @@ requirements:
 ```
 
 Requirements verified by `inspection` or `analysis` stay in the matrix but never get
-generated tests. They show as not covered, which is accurate.
+generated tests. They show as not covered, which is accurate. With the default gate that also
+means a `must` requirement verified this way fails the run: give it a lower priority, or set
+`gate_statuses` in the config, if its evidence lives outside this tool.
 
 The config file sets concurrency, timeouts, retries, the gate, the LLM provider and the names of
 environment variables that hold credentials (`credentials_env: {DemoKey: API_VV_DEMO_KEY}`).
@@ -500,7 +503,15 @@ make llm-gate-report   # rebuilds summary.json and table.md from the run directo
 
 - OpenAPI support is a subset: JSON request bodies, scalar parameters with `form`/`simple`
   style, local refs only. XML and multipart request bodies and `deepObject` parameters are
-  rejected. Callbacks, webhooks and links are ignored (webhooks are listed by `parse`).
+  rejected, and one unsupported operation rejects the whole document. Callbacks, webhooks and
+  links are ignored (webhooks are listed by `parse`).
+- `$ref` siblings follow each specification. In 3.0 they are ignored, so `nullable: true`
+  beside a `$ref` has no effect (wrap the `$ref` in `allOf`). In 3.1, siblings that are only
+  annotations (`description`, `readOnly`, `example`) are merged into the target; if any sibling
+  is a constraint, they are all combined with the target through `allOf`. Constraints inside
+  `allOf` are validated but get no boundary cases of their own.
+- Path, query, header and cookie parameters are sent as text, so a string parameter gets no
+  wrong-type negative: no request can express one.
 - `api-vv diff` compares the parsed contract. A change inside `oneOf`/`anyOf` that adds or
   removes a branch, or one in `not`/`if`, is reported as an unanalysed breaking change for
   manual review (it fails closed).
@@ -537,20 +548,24 @@ CI-built Pages run. Next:
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev,demo]'
 make lint       # ruff check, ruff format --check
-make typecheck  # mypy --strict src
+make typecheck  # mypy --strict on the package, then on tests, scripts and examples
 make test       # pytest with coverage (fails under 85%)
 make demo       # seeded-defect demo; exits non-zero unless exactly REQ-003 and REQ-008 fail
 ```
 
-The suite has 260 pytest tests (97% branch coverage at 1.3.0) covering the parser, generators,
+The suite has 307 pytest tests (98% branch coverage) covering the parser, generators,
 property synthesis, drift classification, executor, LLM adapters, reports, the Pages builder and
 the CLI. The executor tests run the demo app in-process through
 `httpx.ASGITransport`, and the test suite blocks sockets entirely, so no network or model
-calls are made. CI ([ci.yml](.github/workflows/ci.yml)) runs ruff, `mypy --strict`, and tests
-with the 85% coverage gate on Python 3.11 and 3.12. It also checks the drift fixtures, builds and
-smoke-tests the wheel, runs gitleaks, the demo (and builds the Pages preview) and a Docker smoke
-test. [CodeQL](.github/workflows/codeql.yml) and the [Action dogfood](.github/workflows/action.yml)
-run alongside, and Dependabot keeps pip and Actions dependencies current.
+calls are made. One test runs a deliberately ordinary contract
+([`bookshop.yaml`](tests/fixtures/realistic/bookshop.yaml)) against a server that honours it and
+requires zero failures. CI ([ci.yml](.github/workflows/ci.yml)) runs ruff, `mypy --strict`, and
+tests with the 85% coverage gate on Python 3.11 to 3.14. It also checks the drift fixtures, builds
+and smoke-tests the wheel, audits dependencies (`pip-audit`) and the workflows themselves
+(zizmor), runs gitleaks, the demo (which must reproduce the committed sample reports, and builds
+the Pages preview) and a Docker smoke test. Every action is pinned to a commit.
+[CodeQL](.github/workflows/codeql.yml) and the [Action dogfood](.github/workflows/action.yml)
+run alongside, and Dependabot keeps pip, Actions and Docker dependencies current.
 
 ## Project structure
 

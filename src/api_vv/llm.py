@@ -80,7 +80,11 @@ async def complete(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> str:
     if config.provider == "mock":
-        fixtures = read_data(config.fixtures) if config.fixtures else {}
+        # An empty fixtures file is YAML null: no recorded replies, not a crash.
+        fixtures = read_data(config.fixtures) if config.fixtures else None
+        fixtures = {} if fixtures is None else fixtures
+        if not isinstance(fixtures, dict):
+            raise ValueError("LLM fixtures must map requirement ids to recorded responses")
         response = fixtures.get(requirement_id, {"proposals": []})
         return response if isinstance(response, str) else json.dumps(response, sort_keys=True)
     base_url = os.environ.get(config.base_url_env, "")
@@ -137,8 +141,9 @@ async def complete(
             if block.get("type") == "tool_use" and block.get("name") == "propose_cases":
                 return json.dumps(block["input"], sort_keys=True)
         raise ValueError("missing proposal tool response")
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+    except (httpx.HTTPError, AttributeError, KeyError, IndexError, TypeError, ValueError) as exc:
         # Never include exceptions carrying request URLs, headers or provider error bodies.
+        # AttributeError: a reply whose ``content`` is text rather than a list of blocks.
         raise ValueError(f"LLM provider request failed ({type(exc).__name__})") from None
 
 

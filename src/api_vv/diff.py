@@ -36,6 +36,7 @@ UPPER_BOUNDS = (
 EXACT = ("pattern", "format", "const")
 ANNOTATIONS = {
     "title",
+    "summary",
     "description",
     "example",
     "examples",
@@ -238,6 +239,19 @@ def _alternatives(op: Operation) -> set[frozenset[str]]:
     return {frozenset(group) for group in op.security}
 
 
+def _scope_sets(op: Operation) -> dict[frozenset[str], list[set[str]]]:
+    """Scopes each security alternative demands, grouped by the schemes it combines.
+
+    Two alternatives may combine the same schemes with different scopes, so each group of
+    schemes keeps every scope set rather than the last one.
+    """
+    found: dict[frozenset[str], list[set[str]]] = {}
+    for group in op.security:
+        scopes = {f"{name}:{scope}" for name, values in group.items() for scope in values}
+        found.setdefault(frozenset(group), []).append(scopes)
+    return found
+
+
 def compare_operation(
     old: Operation, new: Operation, out: list[Change], old_spec: Spec, new_spec: Spec
 ) -> None:
@@ -316,6 +330,10 @@ def compare_operation(
         for name in sorted(new_headers.keys() - old_headers.keys()):
             emit("response-header-added", False, "header added", f"response {code} {name}")
         for name in sorted(old_headers.keys() & new_headers.keys()):
+            if old_headers[name].required and not new_headers[name].required:
+                # Same reasoning as a response property that is no longer guaranteed.
+                where = f"response {code} {name}"
+                emit("response-header-optional", True, "header no longer guaranteed", where)
             where = f"response {code} header {name}"
             compare_schema(
                 old_headers[name].schema_, new_headers[name].schema_, where, "response", label, out
@@ -331,6 +349,16 @@ def compare_operation(
             emit("security-changed", True, "an accepted security requirement was removed")
         elif after_alts - before_alts:
             emit("security-alternative-added", False, "a security alternative was added")
+        before_scopes, after_scopes = _scope_sets(old), _scope_sets(new)
+        missing: set[str] = set()
+        for schemes in before_scopes.keys() & after_scopes.keys():
+            for held in before_scopes[schemes]:
+                # A client holding ``held`` still gets in if some alternative asks for no more.
+                extra = min((wanted - held for wanted in after_scopes[schemes]), key=len)
+                if extra:
+                    missing.add(", ".join(sorted(extra)))
+        for scopes in sorted(missing):
+            emit("security-scope-added", True, f"required scopes added: {scopes}")
     # Same scheme name, different definition (header renamed, bearer -> basic): clients break.
     for name in sorted({name for group in old.security for name in group}):
         before_scheme = old_spec.security_schemes.get(name)
