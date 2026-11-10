@@ -354,12 +354,12 @@ def operation_cases(
             cases.append(changed)
     covered = {case.expected_status for case in cases if case.enabled}
     # Sorted: set order follows the per-process string hash and would reorder the plan file.
-    for code in sorted(op.responses.keys() - covered):
+    for status in sorted(op.responses.keys() - covered):
         changed = base.model_copy(deep=True)
-        changed.expected_status = code
+        changed.expected_status = status
         changed.enabled = False
-        changed.negative = not code.startswith("2")
-        changed.name = f"{op.id}: documented {code} (review required)"
+        changed.negative = not status.startswith("2")
+        changed.name = f"{op.id}: documented {status} (review required)"
         changed.generators = ["status-coverage"]
         changed.checks = ["documented-status"]
         changed.review_reason = "supply a request that triggers this response and enable the case"
