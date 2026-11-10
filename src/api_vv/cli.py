@@ -1,10 +1,14 @@
-"""Small argparse interface; exit 1 means a failed gate or breaking drift, 2 invalid input."""
+"""Small argparse interface; exit 1 means a failed gate or breaking drift, nothing else.
+
+Exit 2 means invalid input or an unexpected error.
+"""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import sys
+import traceback
 from pathlib import Path
 
 import yaml
@@ -81,7 +85,8 @@ def parser() -> argparse.ArgumentParser:
 def load_config(path: str | None) -> Config:
     if path is None:
         return Config()
-    config = Config.model_validate(read_data(path))
+    data = read_data(path)
+    config = Config.model_validate({} if data is None else data)  # an empty file means defaults
     if config.llm.fixtures:
         config.llm.fixtures = str(Path(path).resolve().parent / config.llm.fixtures)
     return config
@@ -170,7 +175,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         return dispatch(args)
-    except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError, SchemaError) as exc:
+    except (
+        OSError,
+        ValueError,
+        AttributeError,
+        KeyError,
+        TypeError,
+        yaml.YAMLError,
+        SchemaError,
+    ) as exc:
         # ValidationError input values may contain authored credentials; show only locations.
         if isinstance(exc, ValidationError):
             detail = "; ".join(
@@ -181,6 +194,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             detail = f"invalid or unreadable input ({type(exc).__name__})"
         print(f"error: {detail}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        # Exit 1 is reserved for a failed gate or breaking drift: a crash must never look like
+        # one to the CI job reading the exit code. The traceback stays for the bug report.
+        traceback.print_exc()
+        print(f"error: unexpected failure ({type(exc).__name__})", file=sys.stderr)
         return 2
 
 

@@ -12,6 +12,7 @@ lint:
 
 typecheck:
 	$(PYTHON) -m mypy --strict src
+	$(PYTHON) -m mypy
 
 test:
 	$(PYTHON) -m pytest -q

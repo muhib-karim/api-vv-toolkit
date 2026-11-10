@@ -253,3 +253,84 @@ def test_colliding_default_env_names_are_rejected(spec: Spec, requirements: Requ
         ValueError, match="security schemes api-key, api_key share API_VV_AUTH_API_KEY"
     ):
         asyncio.run(execute(plan, "http://api.test", Config(), httpx.MockTransport(lambda r: r)))
+
+
+def reference_doc(version: str = "3.1.0") -> dict[str, Any]:
+    """Every ``$ref`` carries the description/summary siblings that 3.1 Reference Objects allow."""
+    json_object = {"application/json": {"schema": {"type": "object"}}}
+    name = {"$ref": "#/components/schemas/Name", "description": "Display name", "x-order": 1}
+    server_id = {"$ref": "#/components/schemas/Id", "readOnly": True}
+    properties = {"id": server_id, "name": name}
+    body = {"type": "object", "required": ["id", "name"], "properties": properties}
+    return {
+        "openapi": version,
+        "info": {"title": "Refs"},
+        "paths": {
+            "/pets": {
+                "get": {
+                    "operationId": "listPets",
+                    "parameters": [
+                        {"$ref": "#/components/parameters/Limit", "description": "Page size"}
+                    ],
+                    "responses": {
+                        "200": {"$ref": "#/components/responses/Ok", "description": "Overridden"}
+                    },
+                },
+                "post": {
+                    "operationId": "createPet",
+                    "requestBody": {"$ref": "#/components/requestBodies/New", "summary": "New pet"},
+                    "responses": {"201": {"description": "ok"}, "422": {"description": "bad"}},
+                },
+            }
+        },
+        "components": {
+            "parameters": {
+                "Limit": {"name": "limit", "in": "query", "schema": {"type": "integer"}}
+            },
+            "responses": {"Ok": {"description": "ok", "content": json_object}},
+            "requestBodies": {
+                "New": {"required": True, "content": {"application/json": {"schema": body}}}
+            },
+            "schemas": {
+                "Id": {"type": "integer"},
+                "Name": {"type": "string", "minLength": 1, "maxLength": 8},
+            },
+        },
+    }
+
+
+def test_31_reference_objects_keep_their_target_when_described() -> None:
+    spec = parse_document(reference_doc())
+    listing, create = spec.operations["listPets"], spec.operations["createPet"]
+    assert [(param.name, param.location) for param in listing.parameters] == [("limit", "query")]
+    assert listing.responses["200"].content == {"application/json": {"type": "object"}}
+    assert create.request_required and isinstance(create.request_schema, dict)
+    # The annotation is merged, so the property keeps the constraints generators read.
+    assert create.request_schema["properties"]["name"] == {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8,
+        "description": "Display name",
+        "x-order": 1,
+    }
+    # readOnly beside the $ref is honoured: clients neither send nor owe the server's id.
+    assert create.request_schema["required"] == ["name"]
+    cases = operation_cases(create, spec)
+    assert cases[0].enabled and cases[0].body == {"name": "x"}
+    checks = {check for case in cases for check in case.checks}
+    assert {"boundary:name:maxLength:above", "wrong-type:name"} <= checks
+
+
+def test_ref_constraint_siblings_stay_conjunctive_and_30_ignores_siblings() -> None:
+    doc = reference_doc()
+    name = doc["components"]["requestBodies"]["New"]["content"]["application/json"]["schema"][
+        "properties"
+    ]["name"]
+    name["maxLength"] = 3  # a constraint beside the $ref must tighten, never replace
+    schema = parse_document(doc).operations["createPet"].request_schema
+    assert schema is not None
+    assert valid({"name": "abc"}, schema) and not valid({"name": "abcd"}, schema)
+    # OpenAPI 3.0: siblings of $ref are ignored, as that specification requires.
+    legacy = parse_document(reference_doc("3.0.3")).operations["createPet"].request_schema
+    assert isinstance(legacy, dict)
+    assert legacy["properties"]["name"] == {"type": "string", "minLength": 1, "maxLength": 8}

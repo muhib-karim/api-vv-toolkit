@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import html
 import io
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Literal
@@ -115,7 +116,7 @@ def markdown(data: Matrix, *, matrix_only: bool = False) -> str:
         )
     lines += [
         "",
-        "Untraced tests: " + (", ".join(data.untraced_tests) or "none"),
+        "Untraced tests: " + (", ".join(map(escaped, data.untraced_tests)) or "none"),
         "",
         "Operations without requirements: "
         + (", ".join(map(escaped, data.operations_without_requirements)) or "none"),
@@ -264,7 +265,7 @@ seeded defects; its output is not a production service certification.</p>
 {%- if gate %}Gate: FAIL ({{ gate|join(', ') }}){% else %}Gate: PASS{% endif %}</p>{% endif %}
 <dl class="tally" aria-label="Summary">
 {%- for status in statuses %}<div><dt>{{ status }}</dt><dd>{{ counts[status] }}</dd></div>
-{%- endfor %}<div><dt>tests run</dt><dd>{{ data.results|length }}</dd></div>
+{%- endfor %}<div><dt>tests run</dt><dd>{{ executed }}</dd></div>
 </dl></header>
 <main id="matrix" tabindex="-1">
 <h2>Requirements, tests and results</h2>
@@ -326,6 +327,8 @@ def html_report(data: Matrix, *, matrix_only: bool = False, gate: list[str] | No
             icons=ICONS,
             statuses=STATUSES,
             counts=counts,
+            # Disabled review cases are recorded as skipped results; they were not run.
+            executed=sum(result.verdict != "skipped" for result in data.results.values()),
             version=__version__,
         )
     )
@@ -392,6 +395,11 @@ def csv_report(data: Matrix) -> str:
     return output.getvalue()
 
 
+# Everything outside the XML 1.0 ``Char`` production. ElementTree writes such characters
+# verbatim, and one of them (an error path repeating a response key) makes the file unparseable.
+XML_ILLEGAL = re.compile("[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+
+
 def junit(plan: Plan, data: Matrix, config: Config) -> str:
     suite = ET.Element("testsuite", name="api-vv", tests=str(len(plan.cases) + len(data.rows)))
     failures = 0
@@ -430,7 +438,8 @@ def junit(plan: Plan, data: Matrix, config: Config) -> str:
     suite.set("skipped", str(skipped))
     suite.set("errors", "0")
     ET.indent(suite)
-    return ET.tostring(suite, encoding="unicode", xml_declaration=True) + "\n"
+    document = ET.tostring(suite, encoding="unicode", xml_declaration=True)
+    return XML_ILLEGAL.sub("\ufffd", document) + "\n"
 
 
 def write_reports(plan: Plan, run: Run, directory: str | Path, config: Config) -> Matrix:

@@ -15,7 +15,7 @@ import httpx
 from jsonschema import Draft202012Validator, FormatChecker
 
 from api_vv.generate import case_problems, trace_case
-from api_vv.io import check_base_url, plan_digest, unsafe_path
+from api_vv.io import check_base_url, plan_digest, scalar, unsafe_path
 from api_vv.models import (
     Case,
     Config,
@@ -27,7 +27,7 @@ from api_vv.models import (
     SecurityScheme,
     Spec,
 )
-from api_vv.spec import is_json, validate_requirements
+from api_vv.spec import is_json, media_type, types_of, validate_requirements
 
 # Sent by ``auth: invalid`` cases: well-formed for the scheme, never a real credential.
 INVALID_CREDENTIAL = "api-vv-invalid-credential"
@@ -75,24 +75,17 @@ def schema_errors(value: Any, schema: Schema, label: str) -> list[str]:
     ]
 
 
-def scalar(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return "" if value is None else str(value)
-
-
 def header_value(value: str, schema: Schema) -> Any:
-    kind = schema.get("type") if isinstance(schema, dict) else None
-    try:
-        if kind == "integer":
-            return int(value)
-        if kind == "number":
-            return float(value)
-        if kind == "boolean" and value.lower() in {"true", "false"}:
-            return value.lower() == "true"
-    except ValueError:
-        # Not a number: return the raw text so schema validation reports the type mismatch.
-        return value
+    kinds = types_of(schema)  # a nullable header declares ["integer", "null"]
+    for kind, convert in (("integer", int), ("number", float)):
+        if kind in kinds:
+            try:
+                return convert(value)
+            except ValueError:
+                # Not that kind of number: keep the text so validation reports the mismatch.
+                continue
+    if "boolean" in kinds and value.lower() in {"true", "false"}:
+        return value.lower() == "true"
     return value
 
 
@@ -119,13 +112,18 @@ def validate_response(response: httpx.Response, case: Case, op: Operation) -> li
             errors.extend(
                 schema_errors(header_value(value, header.schema_), header.schema_, f"header {name}")
             )
-    if documented.content:
-        media = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-        schema = documented.content.get(media)
+    # A HEAD response carries the headers of the documented representation, never its body.
+    if documented.content and op.method != "HEAD":
+        received = response.headers.get("content-type", "")
+        media = media_type(received)
+        # Specs may document a media type with parameters or in another case. An exact key
+        # wins, and of two keys that differ only by parameter the first documented one does.
+        content: dict[str, Schema] = {}
+        for key, value in documented.content.items():
+            content.setdefault(media_type(key), value)
+        schema = documented.content.get(received.strip(), content.get(media))
         if schema is None:
-            schema = documented.content.get(
-                media.split("/")[0] + "/*", documented.content.get("*/*")
-            )
+            schema = content.get(media.split("/")[0] + "/*", content.get("*/*"))
         if schema is None:
             errors.append("response content-type is missing or undocumented")
         elif is_json(media):
@@ -278,7 +276,7 @@ async def execute(
                             client.send(request), timeout=config.timeout_seconds
                         )
                         break
-                    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+                    except (httpx.HTTPError, httpx.InvalidURL, TimeoutError, ValueError) as exc:
                         if attempts <= retry_limit and isinstance(
                             exc, (httpx.TransportError, TimeoutError)
                         ):

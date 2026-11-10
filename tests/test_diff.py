@@ -406,3 +406,54 @@ def test_request_media_type_change_is_breaking() -> None:
     assert [(c.rule, c.breaking) for c in diff_specs(old, new)] == [
         ("request-media-type-changed", True)
     ]
+
+
+def test_required_response_header_becoming_optional_is_breaking() -> None:
+    """Clients may rely on a header the old contract guaranteed."""
+
+    def with_header(required: bool) -> Spec:
+        header = Header.model_validate({"required": required, "schema": {"type": "string"}})
+        return spec_of(op(responses={"200": Response(headers={"X-Next": header})}))
+
+    assert [
+        (c.rule, c.breaking, c.where) for c in diff_specs(with_header(True), with_header(False))
+    ] == [("response-header-optional", True, "response 200 x-next")]
+    assert diff_specs(with_header(False), with_header(True)) == []
+
+
+def test_added_oauth_scope_is_breaking_and_removed_scope_is_not() -> None:
+    """A token issued for the old scopes is rejected once the operation demands more."""
+    schemes = {"oauth": SecurityScheme(type="oauth2")}
+
+    def scoped(*scopes: str) -> Spec:
+        return spec_of(op(security=[{"oauth": list(scopes)}]), schemes=schemes)
+
+    added = diff_specs(scoped("read"), scoped("read", "admin"))
+    assert [(c.rule, c.breaking, c.detail) for c in added] == [
+        ("security-scope-added", True, "required scopes added: oauth:admin")
+    ]
+    assert diff_specs(scoped("read", "admin"), scoped("read")) == []
+    assert diff_specs(scoped("read"), scoped("read")) == []
+
+
+def test_scope_alternatives_are_compared_as_sets_not_by_position() -> None:
+    schemes = {"oauth": SecurityScheme(type="oauth2")}
+
+    def alternatives(*groups: list[str]) -> Spec:
+        security = [{"oauth": scopes} for scopes in groups]
+        return spec_of(op(security=security), schemes=schemes)
+
+    either = alternatives(["read"], ["write"])
+    assert diff_specs(either, alternatives(["write"], ["read"])) == []
+    # An extra, stricter alternative takes nothing away from existing clients.
+    assert diff_specs(alternatives(["read"]), alternatives(["read"], ["read", "write"])) == []
+    assert diff_specs(alternatives(["read"]), alternatives(["read", "write"], ["read"])) == []
+    # Clients that only hold "write" lose access when that alternative goes away.
+    dropped = diff_specs(either, alternatives(["read"]))
+    assert [(c.rule, c.breaking, c.detail) for c in dropped] == [
+        ("security-scope-added", True, "required scopes added: oauth:read")
+    ]
+
+
+def test_summary_is_an_annotation_not_drift() -> None:
+    assert schema_changes({"type": "string"}, {"type": "string", "summary": "A name"}) == []

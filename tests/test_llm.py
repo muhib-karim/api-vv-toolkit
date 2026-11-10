@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -326,3 +327,32 @@ def test_unrelated_operations_not_in_prompt(base: Plan) -> None:
     sentinel = "unrelated-description-do-not-send"
     base.spec.operations["health"].request_schema = {"description": sentinel}
     assert sentinel not in prompt_for(requirement(base, "REQ-010"), base)
+
+
+@pytest.mark.parametrize("payload", [{"content": "plain text"}, {"content": ["text"]}])
+def test_unexpected_provider_payload_shapes_stay_redacted(
+    payload: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A gateway reply that is not a list of content blocks must not escape as a traceback."""
+    provider_env(monkeypatch)
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    config = LLMConfig(provider="anthropic", model="m")
+    with pytest.raises(ValueError, match=r"^LLM provider request failed \(AttributeError\)$"):
+        asyncio.run(complete(config, "REQ-1", "hi", transport))
+
+
+def test_malformed_llm_base_url_is_a_configuration_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_env(monkeypatch, "https://llm.invalid:80a/v1")
+    with pytest.raises(ValueError, match="^LLM base URL must be an HTTP"):
+        asyncio.run(complete(LLMConfig(provider="openai", model="m"), "REQ-1", "hi"))
+
+
+def test_mock_fixtures_file_may_be_empty_but_must_be_a_mapping(tmp_path: Path) -> None:
+    fixtures = tmp_path / "fixtures.yaml"
+    fixtures.write_text("# no proposals recorded yet\n", encoding="utf-8")
+    config = LLMConfig(provider="mock", fixtures=str(fixtures))
+    assert asyncio.run(complete(config, "REQ-001", "p")) == '{"proposals": []}'
+    for not_a_mapping in ("- not\n- a mapping\n", "[]\n", "false\n"):
+        fixtures.write_text(not_a_mapping, encoding="utf-8")
+        with pytest.raises(ValueError, match="LLM fixtures must map requirement ids"):
+            asyncio.run(complete(config, "REQ-001", "p"))

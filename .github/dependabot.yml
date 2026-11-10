@@ -17,3 +17,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # The Dockerfile's python base image.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

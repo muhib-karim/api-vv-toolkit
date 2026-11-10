@@ -184,3 +184,72 @@ def test_requirements_errors(spec: Spec, requirements: Requirements) -> None:
     requirements.requirements.append(requirements.requirements[0])
     with pytest.raises(ValidationError, match="unique"):
         Requirements.model_validate(requirements.model_dump())
+
+
+def test_unquoted_yaml_dates_stay_strings(tmp_path: Path) -> None:
+    """OpenAPI YAML is JSON-compatible: 2024-01-15 is text, not a ``datetime.date``."""
+    path = tmp_path / "spec.yaml"
+    path.write_text(
+        "openapi: 3.0.3\n"
+        "info: {title: t, version: '1'}\n"
+        "paths:\n"
+        "  /events:\n"
+        "    post:\n"
+        "      operationId: createEvent\n"
+        "      parameters:\n"
+        "        - {name: since, in: query, schema: {type: string, format: date},"
+        " example: 2024-01-15}\n"
+        "      requestBody:\n"
+        "        content:\n"
+        "          application/json:\n"
+        "            schema:\n"
+        "              type: object\n"
+        "              properties:\n"
+        "                at: {type: string, format: date-time, default: 2024-01-15T10:00:00Z}\n"
+        "      responses:\n"
+        "        '201': {description: ok}\n",
+        encoding="utf-8",
+    )
+    op = parse_spec(path).operations["createEvent"]
+    assert op.parameters[0].example == "2024-01-15"
+    assert isinstance(op.request_schema, dict)
+    assert op.request_schema["properties"]["at"]["default"] == "2024-01-15T10:00:00Z"
+
+
+def test_tab_indented_json_is_read_as_json(tmp_path: Path) -> None:
+    path = tmp_path / "spec.json"
+    path.write_text(json.dumps(document(), indent="\t"), encoding="utf-8")
+    assert list(parse_spec(path).operations) == ["list"]
+    path.write_text("\ufeff" + json.dumps(document(), indent="\t"), encoding="utf-8")
+    assert list(parse_spec(path).operations) == ["list"]  # a byte order mark is not content
+    # A YAML document saved under a .json name keeps loading.
+    path.write_text(
+        "openapi: 3.1.0\ninfo: {title: t}\npaths:\n  /items:\n    get:\n"
+        "      responses:\n        '200': {description: ok}\n",
+        encoding="utf-8",
+    )
+    assert list(parse_spec(path).operations) == ["GET /items"]
+
+
+@pytest.mark.parametrize(
+    "patch, title",
+    [
+        ({"components": None}, "Example"),
+        ({"components": {"securitySchemes": None}}, "Example"),
+        ({"security": None}, "Example"),
+        ({"webhooks": None}, "Example"),
+        ({"info": None}, "API"),
+    ],
+)
+def test_empty_sections_read_as_absent(patch: dict[str, Any], title: str) -> None:
+    """``components:`` with nothing under it is YAML null, not a crash."""
+    doc = document()
+    doc.update(patch)
+    assert parse_document(doc).title == title
+
+
+def test_empty_paths_section_is_reported_clearly() -> None:
+    doc = document()
+    doc["paths"] = None
+    with pytest.raises(ValueError, match="no operations"):
+        parse_document(doc)

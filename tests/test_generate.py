@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import pytest
 
 from api_vv.generate import (
@@ -16,6 +17,7 @@ from api_vv.generate import (
 )
 from api_vv.models import Case, Requirements, Spec
 from api_vv.spec import parse_document
+from tests.conftest import one_operation, requirement_for, run_against
 
 
 def case(**overrides: Any) -> Case:
@@ -214,3 +216,45 @@ def test_unsatisfiable_happy_path_needs_review() -> None:
     assert base.review_reason == "invalid body requires negative=true"
     assert not status.enabled and status.expected_status == "400" and status.negative
     assert valid(5, {"type": "integer"})
+
+
+def test_text_parameters_get_no_negative_that_is_valid_on_the_wire() -> None:
+    """Parameters travel as text: integer 1 for a string parameter arrives as valid "1"."""
+    parameters: list[dict[str, Any]] = [
+        {"name": "q", "in": "query", "required": True, "schema": {"type": "string"}},
+        {"name": "X-Trace", "in": "header", "schema": {"type": "string"}},
+        {"name": "day", "in": "query", "schema": {"type": "string", "format": "date"}},
+        {"name": "n", "in": "query", "schema": {"type": "integer"}},
+        {"name": "since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
+        {"name": "callback", "in": "query", "schema": {"type": "string", "format": "uri"}},
+    ]
+    responses = {"200": {"description": "ok"}, "400": {"description": "bad"}}
+    spec = parse_document(one_operation(responses, parameters=parameters))
+    plan = generate(spec, requirement_for("a"), seed=3, property_cases=5)
+    checks = {check for item in plan.cases for check in item.checks}
+    assert "wrong-type:query.q" not in checks and "wrong-type:header.X-Trace" not in checks
+    # Still violations once serialized: "wrong" is no integer and "1" is no date.
+    assert {"wrong-type:query.n", "wrong-type:query.day", "required:query.q"} <= checks
+    # jsonschema checks date-time and uri only with optional extras; plans must not depend on it.
+    assert {"wrong-type:query.since", "wrong-type:query.callback"} <= checks
+
+    def contract_correct(request: httpx.Request) -> httpx.Response:
+        query = request.url.params
+        bad = "q" not in query or not query.get("n", "0").lstrip("-").isdigit()
+        bad = bad or not valid(query.get("day", "2026-01-01"), parameters[2]["schema"])
+        bad = bad or "T" not in query.get("since", "T") or "://" not in query.get("callback", "://")
+        return httpx.Response(400 if bad else 200)
+
+    failed = [result for result in run_against(plan, contract_correct) if result.errors]
+    assert failed == []
+
+
+def test_status_coverage_cases_are_emitted_in_sorted_order() -> None:
+    codes = ("500", "200", "429", "401", "409", "403", "404")
+    spec = parse_document(one_operation({code: {"description": "x"} for code in codes}))
+    review = [
+        item.expected_status
+        for item in operation_cases(spec.operations["a"], spec)
+        if item.generators == ["status-coverage"]
+    ]
+    assert review == ["401", "403", "404", "409", "429", "500"]
