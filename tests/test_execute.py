@@ -8,6 +8,7 @@ import pytest
 
 from api_vv.execute import execute, request_parts, validate_plan, validate_response
 from api_vv.generate import generate
+from api_vv.io import check_base_url
 from api_vv.models import Case, Config, Plan, Response, Result, SecurityScheme
 from api_vv.report import gate_failures, matrix
 from api_vv.spec import parse_document
@@ -214,6 +215,30 @@ def test_missing_credentials_fail_the_case(plan: Plan, monkeypatch: pytest.Monke
 def test_base_url_is_validated(plan: Plan, url: str) -> None:
     with pytest.raises(ValueError, match="base URL"):
         asyncio.run(execute(plan, url))
+
+
+@pytest.mark.parametrize(
+    ("url", "warned"),
+    [
+        ("http://127.0.0.1:8080", False),
+        ("http://localhost:8000", False),
+        ("http://[::1]:8080", False),
+        ("https://example.com", False),
+        ("http://example.com", True),
+        ("http://10.0.0.5:8080", True),
+    ],
+)
+def test_plaintext_base_url_warns_unless_loopback(
+    url: str, warned: bool, capsys: pytest.CaptureFixture[str]
+) -> None:
+    check_base_url(url, "base URL")
+    out, err = capsys.readouterr()
+    host = httpx.URL(url).host
+    expected = (
+        f"warning: base URL uses plaintext HTTP to {host}; requests and credentials "
+        "are not encrypted\n"
+    )
+    assert (out, err) == ("", expected if warned else "")
 
 
 def test_plan_integrity_checks(plan: Plan) -> None:
