@@ -207,6 +207,10 @@ def case_problems(case: Case, spec: Spec, *, strict_parameters: bool = False) ->
     errors: list[str] = []
     if case.expected_status not in op.responses:
         errors.append("undocumented expected response")
+    # A negative case asserts that a request is rejected. Expecting a success status asserts
+    # the opposite, so such a case can only ever "pass" by proving nothing.
+    if case.negative and case.expected_status[:1] == "2":
+        errors.append("negative case expects a success status")
     declared: dict[tuple[str, str], Parameter] = {
         (param.location, param.name): param for param in op.parameters
     }
@@ -290,8 +294,12 @@ def operation_cases(
         changed.negative = invalid
         changed.expected_status = (error if invalid else success) or base.expected_status
         if invalid and error is None:
+            # No documented rejection status: the fallback expectation is a success status,
+            # which no negative case may keep. Keep it disabled for a reviewer to re-target.
             changed.enabled = False
             changed.review_reason = "no documented validation-error response; review expectation"
+            cases.append(changed)
+            return
         issues = case_problems(changed, spec)
         if issues:
             changed.enabled = False

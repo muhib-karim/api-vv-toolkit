@@ -155,7 +155,11 @@ def test_case_problems(spec: Spec) -> None:
     assert case_problems(create, spec) == ["required body is missing"]
     create.has_body, create.body = True, {"name": 1}
     assert case_problems(create, spec) == ["invalid body requires negative=true"]
+    # A negative case may not keep a success expectation, even once flagged negative.
     create.negative = True
+    assert case_problems(create, spec) == ["negative case expects a success status"]
+    # Re-targeted to the documented rejection status, the same case is valid.
+    create.expected_status = "422"
     assert case_problems(create, spec) == []
 
 
@@ -258,3 +262,76 @@ def test_status_coverage_cases_are_emitted_in_sorted_order() -> None:
         if item.generators == ["status-coverage"]
     ]
     assert review == ["401", "403", "404", "409", "429", "500"]
+
+
+# --- C5: a negative case must never expect a success status -------------------------------
+# ``case_problems`` (generate.py:208) only checks that the expected status is *documented*.
+# It never checks that a ``negative=True`` case expects a non-2xx status, so a hand-edited or
+# LLM-proposed plan can assert "this invalid request is accepted", which is the opposite of
+# what a negative case is supposed to prove.
+
+NEGATIVE_WITH_SUCCESS_SPEC = one_operation(
+    {
+        "200": {"description": "ok"},
+        "400": {"description": "bad"},
+    },
+    requestBody={
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {"name": {"type": "string", "maxLength": 8}},
+                }
+            }
+        },
+    },
+)
+
+
+def test_case_problems_rejects_a_negative_case_expecting_2xx() -> None:
+    spec = parse_document(NEGATIVE_WITH_SUCCESS_SPEC)
+    # A body that really is invalid (9 characters against maxLength 8), flagged negative,
+    # but whose expectation was edited to the documented 200.
+    bad = case(
+        operation_id="a",
+        expected_status="200",
+        negative=True,
+        has_body=True,
+        body={"name": "x" * 9},
+    )
+    assert not valid(bad.body, spec.operations["a"].request_schema or {})
+    assert case_problems(bad, spec) == ["negative case expects a success status"]
+
+
+def test_case_problems_rejects_a_negative_case_expecting_a_wildcard_2xx() -> None:
+    spec = parse_document(
+        one_operation({"2XX": {"description": "ok"}, "400": {"description": "bad"}})
+    )
+    bad = case(operation_id="a", expected_status="2XX", negative=True)
+    assert case_problems(bad, spec) == ["negative case expects a success status"]
+
+
+def test_case_problems_still_accepts_a_negative_case_expecting_4xx() -> None:
+    spec = parse_document(NEGATIVE_WITH_SUCCESS_SPEC)
+    good = case(
+        operation_id="a",
+        expected_status="400",
+        negative=True,
+        has_body=True,
+        body={"name": "x" * 9},
+    )
+    assert case_problems(good, spec) == []
+
+
+def test_generated_negative_cases_never_expect_a_success_status() -> None:
+    """No generator may emit an enabled negative case whose expectation is a success."""
+    spec = parse_document(NEGATIVE_WITH_SUCCESS_SPEC)
+    plan = generate(spec, requirement_for("a", status="200"), seed=5, property_cases=5)
+    offenders = [
+        (item.id, item.expected_status)
+        for item in plan.cases
+        if item.negative and item.enabled and item.expected_status[:1] in {"2"}
+    ]
+    assert offenders == []
