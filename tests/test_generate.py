@@ -258,3 +258,61 @@ def test_status_coverage_cases_are_emitted_in_sorted_order() -> None:
         if item.generators == ["status-coverage"]
     ]
     assert review == ["401", "403", "404", "409", "429", "500"]
+
+
+ONE_OF_CONFLICT: dict[str, Any] = {
+    "oneOf": [{"type": "string", "maxLength": 1}, {"type": "integer"}],
+    "minLength": 5,
+}
+
+
+def body_operation(schema: dict[str, Any]) -> Spec:
+    """POST /a with a required JSON body, a 200 and a 422."""
+    return parse_document(
+        one_operation(
+            {"200": {"description": "ok"}, "422": {"description": "bad"}},
+            method="post",
+            requestBody={"required": True, "content": {"application/json": {"schema": schema}}},
+        )
+    )
+
+
+def happy_path(spec: Spec) -> Case:
+    # Unchecked "in": a disabled happy path merges with its documented-status review twin.
+    return next(
+        case for case in generate(spec, requirement_for("a")).cases if "happy-path" in case.checks
+    )
+
+
+@pytest.mark.parametrize(
+    "branches",
+    [
+        ONE_OF_CONFLICT["oneOf"],
+        # A later branch over the synthesis limit is skipped, not fatal.
+        [
+            {"type": "string", "maxLength": 1},
+            {"type": "array", "minItems": 5000},
+            {"type": "integer"},
+        ],
+    ],
+)
+def test_happy_path_retries_one_of_branches_against_siblings(
+    branches: list[dict[str, Any]],
+) -> None:
+    spec = body_operation({"oneOf": branches, "minLength": 5})
+    happy = happy_path(spec)
+    assert happy.review_reason is None
+    assert happy.enabled and happy.body == 0
+    request_schema = spec.operations["a"].request_schema
+    assert request_schema is not None and valid(happy.body, request_schema)
+    assert happy.requirement_ids == ["REQ-001"]
+
+
+def test_unresolvable_one_of_still_disables_the_happy_path() -> None:
+    schema = {
+        "oneOf": [{"type": "string", "maxLength": 1}, {"type": "string", "maxLength": 2}],
+        "minLength": 5,
+    }
+    happy = happy_path(body_operation(schema))
+    assert not happy.enabled
+    assert happy.review_reason == "invalid body requires negative=true"
