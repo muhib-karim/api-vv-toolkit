@@ -11,11 +11,12 @@ import pytest
 from pydantic import ValidationError
 
 from api_vv.cli import main
-from api_vv.execute import execute, request_parts
+from api_vv.execute import INVALID_CREDENTIAL_PREFIX, execute, request_parts
 from api_vv.generate import generate, operation_cases, valid
 from api_vv.models import Case, Config, Plan, Requirements, SecurityScheme, Spec
 from api_vv.spec import normalize_schema, parse_document
 
+# The literal this project used to publish; it must never be sent again.
 INVALID = "api-vv-invalid-credential"
 
 
@@ -191,26 +192,31 @@ def test_generated_invalid_credentials_case(plan: Plan) -> None:
 
 
 @pytest.mark.parametrize(
-    "scheme, slot, expected",
+    "scheme, slot, wrapper",
     [
-        ({"type": "apiKey", "in": "header", "name": "X-Key"}, (1, "x-key"), INVALID),
-        ({"type": "apiKey", "in": "query", "name": "k"}, (2, "k"), INVALID),
-        ({"type": "apiKey", "in": "cookie", "name": "sid"}, (3, "sid"), INVALID),
-        ({"type": "http", "scheme": "bearer"}, (1, "authorization"), "Bearer " + INVALID),
-        (
-            {"type": "http", "scheme": "basic"},
-            (1, "authorization"),
-            "Basic " + base64.b64encode(f"api-vv:{INVALID}".encode()).decode(),
-        ),
+        ({"type": "apiKey", "in": "header", "name": "X-Key"}, (1, "x-key"), ""),
+        ({"type": "apiKey", "in": "query", "name": "k"}, (2, "k"), ""),
+        ({"type": "apiKey", "in": "cookie", "name": "sid"}, (3, "sid"), ""),
+        ({"type": "http", "scheme": "bearer"}, (1, "authorization"), "Bearer "),
+        ({"type": "http", "scheme": "basic"}, (1, "authorization"), "Basic "),
     ],
 )
 def test_invalid_auth_sends_a_fake_credential_without_configuration(
-    scheme: dict[str, Any], slot: tuple[int, str], expected: str
+    scheme: dict[str, Any], slot: tuple[int, str], wrapper: str
 ) -> None:
+    """The fake keeps the scheme's shape but is not the published literal any more."""
     spec = secured(scheme)
     case, _ = one_case(spec, auth="invalid")
     parts = request_parts(case, spec.operations["createPet"], spec, Config())
-    assert parts[slot[0]][slot[1]] == expected  # type: ignore[index]
+    sent = parts[slot[0]][slot[1]]  # type: ignore[index]
+    assert sent.startswith(wrapper)
+    payload = sent[len(wrapper) :]
+    if wrapper == "Basic ":
+        payload = base64.b64decode(payload).decode()
+        assert payload.startswith("api-vv:")
+        payload = payload[len("api-vv:") :]
+    assert payload.startswith(INVALID_CREDENTIAL_PREFIX)
+    assert payload != INVALID
 
 
 def test_invalid_auth_case_runs_against_demo(
@@ -334,3 +340,123 @@ def test_ref_constraint_siblings_stay_conjunctive_and_30_ignores_siblings() -> N
     legacy = parse_document(reference_doc("3.0.3")).operations["createPet"].request_schema
     assert isinstance(legacy, dict)
     assert legacy["properties"]["name"] == {"type": "string", "minLength": 1, "maxLength": 8}
+
+
+# --- S3: the invalid credential must not be a fixed, published literal --------------------
+# ``execute.py:33`` hard-codes INVALID_CREDENTIAL and ``execute.py:191`` sends it verbatim for
+# every ``auth: invalid`` case. Any service (or test double) that rejects exactly that string,
+# or that allowlists the documented value, makes the case pass: the requirement is then
+# reported "verified" although the service never rejected a credential it had not seen before.
+
+
+def test_invalid_auth_does_not_send_the_documented_sentinel() -> None:
+    spec = secured({"type": "http", "scheme": "bearer"})
+    case, _ = one_case(spec, auth="invalid")
+    _, headers, _, _ = request_parts(case, spec.operations["createPet"], spec, Config())
+    assert headers["authorization"] != "Bearer " + INVALID
+
+
+def test_invalid_auth_api_key_does_not_send_the_documented_sentinel() -> None:
+    spec = secured({"type": "apiKey", "in": "header", "name": "X-Key"})
+    case, _ = one_case(spec, auth="invalid")
+    _, headers, _, _ = request_parts(case, spec.operations["createPet"], spec, Config())
+    assert headers["x-key"] != INVALID
+
+
+def test_invalid_auth_credential_differs_between_executions() -> None:
+    """Pins the "randomize" option: a credential that repeats across runs can be allowlisted."""
+    spec = secured({"type": "apiKey", "in": "header", "name": "X-Key"})
+    requirements = Requirements.model_validate(
+        {
+            "requirements": [
+                {
+                    "id": "REQ-001",
+                    "text": "t",
+                    "priority": "must",
+                    "verification_method": "test",
+                    "covers": [
+                        {
+                            "operation_id": "createPet",
+                            "responses": ["401"],
+                            "checks": ["auth-invalid"],
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    plan = generate(spec, requirements)
+    plan.cases = [case for case in plan.cases if case.checks == ["auth-invalid"]]
+    sent: list[str] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        sent.append(request.headers.get("x-key", ""))
+        return httpx.Response(401)
+
+    for _ in range(2):
+        asyncio.run(execute(plan, "http://api.test", Config(), httpx.MockTransport(record)))
+    assert len(sent) == 2 and sent[0] != sent[1]
+
+
+def test_lenient_service_cannot_fake_verify_an_invalid_credential_case() -> None:
+    """A service that accepts every key except the published sentinel must not pass."""
+    spec = secured({"type": "apiKey", "in": "header", "name": "X-Key"})
+    requirements = Requirements.model_validate(
+        {
+            "requirements": [
+                {
+                    "id": "REQ-001",
+                    "text": "t",
+                    "priority": "must",
+                    "verification_method": "test",
+                    "covers": [
+                        {
+                            "operation_id": "createPet",
+                            "responses": ["401"],
+                            "checks": ["auth-invalid"],
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    plan = generate(spec, requirements)
+    plan.cases = [case for case in plan.cases if case.checks == ["auth-invalid"]]
+    (case,) = plan.cases
+    assert case.enabled and case.auth == "invalid"
+
+    def only_the_documented_sentinel_is_rejected(request: httpx.Request) -> httpx.Response:
+        key = request.headers.get("x-key", "")
+        return httpx.Response(401 if key == INVALID else 200)
+
+    run = asyncio.run(
+        execute(
+            plan,
+            "http://api.test",
+            Config(),
+            httpx.MockTransport(only_the_documented_sentinel_is_rejected),
+        )
+    )
+    (result,) = run.results
+    assert result.verdict == "failed", (
+        "a service that accepts every key except the published sentinel must not verify auth"
+    )
+
+
+def test_invalid_auth_keeps_the_scheme_shape() -> None:
+    """Guard: the fake credential must stay well-formed for its scheme."""
+    spec = secured({"type": "http", "scheme": "basic"})
+    case, _ = one_case(spec, auth="invalid")
+    _, headers, _, _ = request_parts(case, spec.operations["createPet"], spec, Config())
+    scheme, _, encoded = headers["authorization"].partition(" ")
+    assert scheme == "Basic" and ":" in base64.b64decode(encoded).decode()
+    for scheme_doc, slot in (
+        ({"type": "http", "scheme": "bearer"}, (1, "authorization")),
+        ({"type": "apiKey", "in": "query", "name": "k"}, (2, "k")),
+        ({"type": "apiKey", "in": "cookie", "name": "sid"}, (3, "sid")),
+    ):
+        spec = secured(scheme_doc)
+        case, _ = one_case(spec, auth="invalid")
+        parts = request_parts(case, spec.operations["createPet"], spec, Config())
+        value = parts[slot[0]][slot[1]]  # type: ignore[index]
+        assert value and (value != "Bearer " or len(value) > len("Bearer "))
