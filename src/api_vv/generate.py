@@ -87,6 +87,22 @@ def sample(schema: Schema) -> Any:
     return "x" * length
 
 
+def branch_samples(schema: Schema) -> Iterator[Any]:
+    """Samples of each top-level oneOf/anyOf branch merged with its sibling keywords."""
+    if isinstance(schema, bool):
+        return
+    rest = {key: value for key, value in schema.items() if key not in ("oneOf", "anyOf")}
+    for key in ("oneOf", "anyOf"):
+        for branch in schema.get(key) or []:
+            if not isinstance(branch, dict):
+                continue
+            try:
+                candidate = sample({**rest, **branch})
+            except ValueError:
+                continue  # a synthesis limit in an unused branch must not fail generation
+            yield candidate
+
+
 def mutations(value: Any, schema: Schema, path: str) -> Iterator[tuple[Any, str]]:
     if isinstance(schema, bool):
         return
@@ -278,6 +294,13 @@ def operation_cases(
             param.example if param.example is not None else sample(param.schema_)
         )
     problems = case_problems(base, spec)
+    if problems and op.request_schema is not None and not valid(base.body, op.request_schema):
+        # shortcut: retries top-level oneOf/anyOf branches only; nested ones still need an example.
+        schema = op.request_schema
+        base.body = next(
+            (body for body in branch_samples(schema) if valid(body, schema)), base.body
+        )
+        problems = case_problems(base, spec)
     if problems or success is None:
         base.enabled = False
         base.review_reason = "; ".join(problems) or "no documented success response"
