@@ -8,7 +8,7 @@ from collections.abc import Set
 
 import pytest
 
-from api_vv.generate import trace_case
+from api_vv.generate import generate, trace_case
 from api_vv.io import plan_digest
 from api_vv.models import Config, Coverage, Plan, Result, Run
 from api_vv.report import (
@@ -23,6 +23,8 @@ from api_vv.report import (
     markdown,
     matrix,
 )
+from api_vv.spec import parse_document
+from tests.conftest import one_operation, requirement_for
 
 
 def run_with(plan: Plan, failed: Set[str] = frozenset(), missing: Set[str] = frozenset()) -> Run:
@@ -295,3 +297,43 @@ def test_html_report_renders_sparse_matrices(plan: Plan) -> None:
     # A verdict the palette has no colour for still renders, as a neutral badge.
     odd = first.model_copy(update={"verdicts": {case.id: "flaky" for case in first.cases}})
     assert ">flaky</span>" in html_report(bare.model_copy(update={"rows": [odd]}))
+
+
+def one_case_plan() -> Plan:
+    """GET /a with only a 200: generation yields exactly one enabled happy-path case."""
+    spec = parse_document(one_operation({"200": {"description": "ok"}}))
+    return generate(spec, requirement_for("a"))
+
+
+@pytest.mark.parametrize("review_verdict", ["skipped", "not run"])
+def test_disabled_review_case_does_not_block_verified(review_verdict: str) -> None:
+    plan = one_case_plan()
+    (happy,) = plan.cases
+    review = happy.model_copy(
+        deep=True, update={"id": "TC-manual-review", "enabled": False, "review_reason": "manual"}
+    )
+    plan.cases.append(review)
+    results = [Result(case_id=happy.id, verdict="passed")]
+    if review_verdict == "skipped":
+        results.append(Result(case_id=review.id, verdict="skipped", errors=["manual"]))
+    data = matrix(plan, Run(plan_digest=plan_digest(plan), results=results))
+    (row,) = data.rows
+    assert row.verdicts[review.id] == review_verdict
+    assert row.status == "verified"
+    assert gate_failures(data, Config()) == []
+
+
+@pytest.mark.parametrize("extra_verdict", ["skipped", "not run"])
+def test_enabled_case_that_did_not_pass_still_blocks_verified(extra_verdict: str) -> None:
+    plan = one_case_plan()
+    (happy,) = plan.cases
+    extra = happy.model_copy(deep=True, update={"id": "TC-enabled-extra"})
+    plan.cases.append(extra)
+    results = [Result(case_id=happy.id, verdict="passed")]
+    if extra_verdict == "skipped":
+        results.append(Result(case_id=extra.id, verdict="skipped", errors=["hand-edited"]))
+    data = matrix(plan, Run(plan_digest=plan_digest(plan), results=results))
+    (row,) = data.rows
+    assert row.verdicts[extra.id] == extra_verdict
+    assert row.status == "partially covered"
+    assert gate_failures(data, Config()) == ["REQ-001"]
