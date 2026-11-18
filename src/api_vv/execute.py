@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import re
+import secrets
 import time
 from typing import Any
 from urllib.parse import quote
@@ -30,7 +31,15 @@ from api_vv.models import (
 from api_vv.spec import is_json, media_type, types_of, validate_requirements
 
 # Sent by ``auth: invalid`` cases: well-formed for the scheme, never a real credential.
-INVALID_CREDENTIAL = "api-vv-invalid-credential"
+# The suffix is random per run, so a service (or a test double) cannot pass by allowlisting a
+# value this project publishes; the prefix keeps the fake recognizable in service logs.
+INVALID_CREDENTIAL_PREFIX = "api-vv-invalid-"
+INVALID_CREDENTIAL = INVALID_CREDENTIAL_PREFIX + "credential"
+
+
+def new_invalid_credential() -> str:
+    """A fresh, scheme-shaped fake credential; one value is used for a whole run."""
+    return INVALID_CREDENTIAL_PREFIX + secrets.token_hex(16)
 
 
 def validate_plan(plan: Plan) -> None:
@@ -162,7 +171,12 @@ def apply_credential(
 
 
 def request_parts(
-    case: Case, op: Operation, spec: Spec, config: Config
+    case: Case,
+    op: Operation,
+    spec: Spec,
+    config: Config,
+    *,
+    invalid_credential: str | None = None,
 ) -> tuple[str, dict[str, str], dict[str, str], dict[str, str]]:
     path = op.path
     for name, value in case.parameters.get("path", {}).items():
@@ -185,10 +199,11 @@ def request_parts(
                 else:
                     headers.pop("authorization", None)
         if case.auth == "invalid":
+            secret = invalid_credential or new_invalid_credential()
             for name in next((group for group in op.security if group), {}):
                 scheme = spec.security_schemes[name]
                 basic = scheme.type == "http" and scheme.scheme == "basic"
-                fake = f"api-vv:{INVALID_CREDENTIAL}" if basic else INVALID_CREDENTIAL
+                fake = f"api-vv:{secret}" if basic else secret
                 apply_credential(scheme, fake, headers, locations)
         return path, headers, query, cookies
     if not op.security:
@@ -233,6 +248,8 @@ async def execute(
                 f"security schemes {', '.join(names)} share {env}; set credentials_env"
             )
     check_base_url(base_url, "base URL")
+    # One fake credential for the whole run: consistent evidence, still unguessable in advance.
+    invalid_credential = new_invalid_credential()
     semaphore = asyncio.Semaphore(config.concurrency)
     requirements = {item.id: item for item in plan.requirements.requirements}
     async with httpx.AsyncClient(
@@ -246,7 +263,9 @@ async def execute(
                 )
             op = plan.spec.operations[case.operation_id]
             try:
-                path, headers, query, cookies = request_parts(case, op, plan.spec, config)
+                path, headers, query, cookies = request_parts(
+                    case, op, plan.spec, config, invalid_credential=invalid_credential
+                )
             except ValueError as exc:
                 return Result(case_id=case.id, verdict="failed", errors=[str(exc)])
             if case.has_body:

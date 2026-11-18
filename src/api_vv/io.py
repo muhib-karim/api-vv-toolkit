@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +74,22 @@ def check_base_url(value: str, label: str) -> None:
         or (url.port is not None and not 0 < url.port < 65536)
     ):
         raise ValueError(message)
+    if url.scheme == "http" and not loopback(url.host):
+        print(
+            f"warning: {label} uses plaintext HTTP to {url.host}; requests and credentials "
+            "are not encrypted",
+            file=sys.stderr,
+        )
+
+
+def loopback(host: str) -> bool:
+    """Only this machine: ``localhost`` or a loopback literal (127.0.0.0/8, ::1)."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def unsafe_path(path: str) -> bool:
