@@ -69,7 +69,8 @@ def matrix(plan: Plan, run: Run | None = None) -> Matrix:
             status = "failed"
         elif not passed:
             status = "not covered"
-        elif covered and all(value == "passed" for value in verdicts.values()):
+        elif covered and all(verdicts[case.id] == "passed" for case in cases if case.enabled):
+            # Disabled review cases never run; coverage alone decides once nothing enabled is open.
             status = "verified"
         else:
             status = "partially covered"
