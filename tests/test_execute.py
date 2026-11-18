@@ -349,3 +349,81 @@ def test_request_that_cannot_be_built_fails_its_own_case_only(plan: Plan) -> Non
 
     run = asyncio.run(execute(edited, "http://h.test", Config(), httpx.MockTransport(handler)))
     assert [result.errors for result in run.results] == [["request failed (InvalidURL)"]]
+
+
+# --- C5: a negative case expecting 2xx must not be accepted or pass ------------------------
+# ``case_problems`` now rejects a ``negative=True`` case whose expectation is a 2xx status
+# (generate.py:210-214), so ``validate_plan`` (execute.py:54-58) and the LLM proposal gate
+# (llm.py:187) both refuse it. These tests pin the guard at the plan and executor layers.
+
+
+def negative_success_plan() -> Plan:
+    spec = parse_document(
+        one_operation(
+            {"200": {"description": "ok"}, "400": {"description": "bad"}},
+            requestBody={
+                "required": True,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": ["name"],
+                            "properties": {"name": {"type": "string", "maxLength": 8}},
+                        }
+                    }
+                },
+            },
+        )
+    )
+    requirements = requirement_for("a", status="400")
+    plan = generate(spec, requirements)
+    (case,) = [item for item in plan.cases if item.checks == ["boundary:name:maxLength:above"]]
+    # The reviewer "fixes" the expectation to the documented success status instead of 400.
+    case.expected_status = "200"
+    case.negative = True
+    return plan
+
+
+def test_validate_plan_rejects_a_negative_case_expecting_success() -> None:
+    plan = negative_success_plan()
+    (case,) = [item for item in plan.cases if item.checks == ["boundary:name:maxLength:above"]]
+    assert case.negative and case.expected_status == "200"
+    with pytest.raises(ValueError, match="negative case expects a success status"):
+        validate_plan(plan)
+
+
+def test_a_negative_case_expecting_success_is_not_counted_as_a_pass() -> None:
+    plan = negative_success_plan()
+    with pytest.raises(ValueError, match="negative case expects a success status"):
+        run_against(plan, lambda request: httpx.Response(200, json={"ok": True}))
+
+
+def test_enabling_a_generated_review_case_still_needs_a_rejection_status() -> None:
+    """The generated review workflow: a case with no documented rejection status is disabled
+    with a review reason. Enabling it unchanged must fail closed, because its fallback
+    expectation is the success status that no negative case may keep."""
+    spec = parse_document(
+        one_operation(
+            {"200": {"description": "ok"}},
+            requestBody={
+                "required": True,
+                "content": {"application/json": {"schema": {"type": "integer"}}},
+            },
+        )
+    )
+    plan = generate(spec, requirement_for("a", status="200"))
+    review = [
+        item
+        for item in plan.cases
+        if not item.enabled and item.negative and item.expected_status == "200"
+    ]
+    assert review, "generation should emit a negative review case expecting the success status"
+    assert all(
+        item.review_reason == "no documented validation-error response; review expectation"
+        for item in review
+    )
+    # A reviewer who enables the case without re-targeting it gets a clear refusal.
+    for item in review:
+        item.enabled = True
+    with pytest.raises(ValueError, match="negative case expects a success status"):
+        validate_plan(plan)
