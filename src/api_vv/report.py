@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import html
 import io
-import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Literal
@@ -686,7 +685,18 @@ def csv_report(data: Matrix) -> str:
 
 # Everything outside the XML 1.0 ``Char`` production. ElementTree writes such characters
 # verbatim, and one of them (an error path repeating a response key) makes the file unparseable.
-XML_ILLEGAL = re.compile("[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+def _is_valid_xml_char(ch: str) -> bool:
+    code = ord(ch)
+    return (
+        code in (0x9, 0xA, 0xD)
+        or 0x20 <= code <= 0xD7FF
+        or 0xE000 <= code <= 0xFFFD
+        or 0x10000 <= code <= 0x10FFFF
+    )
+
+
+def _strip_xml_illegal(text: str) -> str:
+    return "".join(ch if _is_valid_xml_char(ch) else "\ufffd" for ch in text)
 
 
 def junit(plan: Plan, data: Matrix, config: Config) -> str:
@@ -728,7 +738,7 @@ def junit(plan: Plan, data: Matrix, config: Config) -> str:
     suite.set("errors", "0")
     ET.indent(suite)
     document = ET.tostring(suite, encoding="unicode", xml_declaration=True)
-    return XML_ILLEGAL.sub("\ufffd", document) + "\n"
+    return _strip_xml_illegal(document) + "\n"
 
 
 def write_reports(plan: Plan, run: Run, directory: str | Path, config: Config) -> Matrix:

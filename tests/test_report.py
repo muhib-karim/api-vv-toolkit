@@ -337,3 +337,11 @@ def test_enabled_case_that_did_not_pass_still_blocks_verified(extra_verdict: str
     assert row.verdicts[extra.id] == extra_verdict
     assert row.status == "partially covered"
     assert gate_failures(data, Config()) == ["REQ-001"]
+
+
+def test_strip_xml_illegal_filters_invalid_control_chars_only() -> None:
+    from api_vv.report import _strip_xml_illegal
+
+    raw = "ok\t\n\r\x00\x0b\ufffe বাংলা \U0001f600"
+    cleaned = _strip_xml_illegal(raw)
+    assert cleaned == "ok\t\n\r\ufffd\ufffd\ufffd বাংলা \U0001f600"
